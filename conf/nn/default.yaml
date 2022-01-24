@@ -1,0 +1,57 @@
+data:
+  _target_: fs_grl.data.datamodule.GraphDataModule
+  dataset_name: TRIANGLES
+  data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
+  data_path: ${nn.data.data_dir}/${nn.data.dataset_name}.txt
+  classes_split_path: ${nn.data.data_dir}/classes_split.json
+  num_episodes: 2000
+  query_support_ratio: 0.8
+  num_queries_per_class: 15
+  num_classes_per_episode: 3
+  num_supports_per_class: 10
+  split_query_support: true
+
+  datasets:
+    train:
+      _target_: fs_grl.data.dataset.MyDataset
+
+#    val:
+#      - _target_: fs_grl.data.dataset.MyDataset
+
+    test:
+      - _target_: fs_grl.data.dataset.MyDataset
+
+  gpus: ${train.trainer.gpus}
+
+  num_workers:
+    train: 8
+    val: 4
+    test: 4
+
+  batch_size:
+    train: 4
+    val: 16
+    test: 16
+
+module:
+  _target_: fs_grl.pl_modules.pl_module.MyLightningModule
+
+  model:
+    _target_: fs_grl.modules.naive_baseline.GNNEncoder
+    num_mlp_layers: 1
+    hidden_dim: 64
+    feature_dim: ???
+    num_classes: ???
+    output_dim: 64
+    episode_hparams: ???
+
+  optimizer:
+    _target_: torch.optim.Adam
+
+#  lr_scheduler:
+#    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+#    T_0: 10
+#    T_mult: 2
+#    eta_min: 0 # min value for the lr
+#    last_epoch: -1
+#    verbose: False
