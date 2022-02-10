@@ -40,6 +40,14 @@ class GNNEncoder(nn.Module):
             self.episode_hparams.num_queries_per_class * self.episode_hparams.num_classes_per_episode
         )
 
+        self.similarity_network = MLP(
+            num_layers=2,
+            input_dim=self.output_dim * 2,
+            output_dim=1,
+            hidden_dim=self.output_dim * 2,
+            non_linearity="tanh",
+        )
+
     def embed_supports(self, supports: Batch):
         """
         :param supports: Batch containing BxNxK support graphs as a single large graph
@@ -124,7 +132,6 @@ class GNNEncoder(nn.Module):
         :param class_prototypes:
         :return:
         """
-        device = embedded_queries.device
         batch_size = batch.num_episodes
 
         batch_queries = []
@@ -172,6 +179,14 @@ class GNNEncoder(nn.Module):
 
         class_prototypes = self.get_class_prototypes(embedded_supports, batch)
 
+        # both shape (num_queries_batch*num_classes, hidden_dim)
         batch_queries, batch_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
 
-        return batch_queries, batch_prototypes
+        merged_query_prototypes = torch.cat((batch_queries, batch_prototypes), dim=-1)
+
+        distances = self.similarity_network(merged_query_prototypes)
+
+        squashed_distances = nn.functional.tanh(distances)
+
+        # return batch_queries, batch_prototypes,
+        return squashed_distances

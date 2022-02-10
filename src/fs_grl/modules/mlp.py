@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class MLP(nn.Module):
-    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim):
+    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim, non_linearity="relu"):
         """
         num_layers: number of layers in the neural networks
                     If num_layers=1, this reduces to linear model.
@@ -24,10 +23,20 @@ class MLP(nn.Module):
         for layer in range(1, num_layers):
             self.linears.append(nn.Linear(hidden_sizes[layer - 1], hidden_sizes[layer]))
 
+        self.non_linearity = self.get_non_linearity(non_linearity)
+
     def forward(self, x):
         h = x
         for layer in range(self.num_layers - 1):
             h = self.linears[layer](h)
-            h = F.relu(h)
+            h = self.non_linearity(h)
         output = self.linears[-1](h)
         return output
+
+    def get_non_linearity(self, non_linearity):
+        if non_linearity == "relu":
+            return nn.ReLU()
+        elif non_linearity == "tanh":
+            return nn.Tanh()
+        else:
+            raise NotImplementedError(f"No such activaction {non_linearity}")

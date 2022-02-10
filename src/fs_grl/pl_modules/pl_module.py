@@ -5,19 +5,17 @@ import hydra
 import omegaconf
 import pytorch_lightning as pl
 import torch
-import torch.nn.functional as F
 import torchmetrics
 from hydra.utils import instantiate
 from torch import nn
 from torch.optim import Optimizer
-from torchmetrics import Accuracy, F1Score
+from torchmetrics import Accuracy
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.modules.naive_baseline import GNNEncoder
 
 pylogger = logging.getLogger(__name__)
 
@@ -46,7 +44,9 @@ class MyLightningModule(pl.LightningModule):
             episode_hparams=self.metadata.episode_hparams,
         )
 
-        self.loss_func = nn.CosineEmbeddingLoss(margin=0.5)
+        # self.loss_func = nn.CosineEmbeddingLoss(margin=0.5)
+        # self.loss_func = nn.CrossEntropyLoss()
+        self.loss_func = nn.HingeEmbeddingLoss(margin=0.5)
 
         self.val_metrics = nn.ModuleDict(
             {"val/micro_acc": Accuracy(num_classes=metadata.episode_hparams.num_classes_per_episode)}
@@ -59,10 +59,14 @@ class MyLightningModule(pl.LightningModule):
         Returns:
             output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
         """
-        batch_queries, batch_prototypes = self.model(batch)
+        # batch_queries, batch_prototypes = self.model(batch)
 
-        loss = self.loss_func(batch_queries, batch_prototypes, batch.cosine_targets)
-        return {"loss": loss, "batch_queries": batch_queries, "batch_prototypes": batch_prototypes}
+        squashed_distances = self.model(batch).squeeze(-1)
+
+        loss = self.loss_func(squashed_distances, batch.cosine_targets)
+        # loss = self.loss_func(batch_queries, batch_prototypes, batch.cosine_targets)
+        # return {"loss": loss, "batch_queries": batch_queries, "batch_prototypes": batch_prototypes}
+        return {"loss": loss, "squashed_distances": squashed_distances}
 
     def step(self, batch, split: str) -> Mapping[str, Any]:
 
@@ -82,13 +86,19 @@ class MyLightningModule(pl.LightningModule):
 
         # shape (num_queries_batch) = num_queries_per_class * num_classes_per_episode * batch_size * num_classes_per_episode
 
-        cos_sim = torch.einsum(
-            "bh,bh->b", (F.normalize(step_out["batch_queries"]), F.normalize(step_out["batch_prototypes"]))
-        )
+        # cos_sim = torch.einsum(
+        #     "bh,bh->b", (F.normalize(step_out["batch_queries"]), F.normalize(step_out["batch_prototypes"]))
+        # )
+
+        # num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
+        # reshaped_cos_sim = cos_sim.reshape((-1, num_classes_per_episode))
+        # pred_labels = torch.argmax(reshaped_cos_sim, dim=-1)
+
+        dis = step_out["squashed_distances"]
 
         num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
-        reshaped_cos_sim = cos_sim.reshape((-1, num_classes_per_episode))
-        pred_labels = torch.argmax(reshaped_cos_sim, dim=-1)
+        reshaped_cos_sim = dis.reshape((-1, num_classes_per_episode))
+        pred_labels = torch.argmin(reshaped_cos_sim, dim=-1)
 
         target_labels = batch.label_targets
 
