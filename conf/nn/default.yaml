@@ -1,3 +1,6 @@
+defaults:
+  - model/gnn_embedding_mlp
+
 data:
   _target_: fs_grl.data.datamodule.GraphDataModule
   dataset_name: TRIANGLES
@@ -36,17 +39,10 @@ data:
 module:
   _target_: fs_grl.pl_modules.pl_module.MyLightningModule
 
-  model:
-    _target_: fs_grl.modules.naive_baseline.GNNEncoder
-    num_mlp_layers: 1
-    hidden_dim: 64
-    feature_dim: ???
-    num_classes: ???
-    output_dim: 64
-    episode_hparams: ???
-
   optimizer:
     _target_: torch.optim.Adam
+
+  model: ${nn.model}
 
 #  lr_scheduler:
 #    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts

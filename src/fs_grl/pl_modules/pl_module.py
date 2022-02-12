@@ -39,14 +39,12 @@ class MyLightningModule(pl.LightningModule):
 
         self.model = instantiate(
             self.hparams.model,
+            cfg=self.hparams.model,
             feature_dim=self.metadata.feature_dim,
             num_classes=self.metadata.num_classes,
             episode_hparams=self.metadata.episode_hparams,
+            _recursive_=False,
         )
-
-        # self.loss_func = nn.CosineEmbeddingLoss(margin=0.5)
-        # self.loss_func = nn.CrossEntropyLoss()
-        self.loss_func = nn.HingeEmbeddingLoss(margin=0.5)
 
         self.val_metrics = nn.ModuleDict(
             {"val/micro_acc": Accuracy(num_classes=metadata.episode_hparams.num_classes_per_episode)}
@@ -59,14 +57,11 @@ class MyLightningModule(pl.LightningModule):
         Returns:
             output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
         """
-        # batch_queries, batch_prototypes = self.model(batch)
 
-        squashed_distances = self.model(batch).squeeze(-1)
+        similarities = self.model(batch)
 
-        loss = self.loss_func(squashed_distances, batch.cosine_targets)
-        # loss = self.loss_func(batch_queries, batch_prototypes, batch.cosine_targets)
-        # return {"loss": loss, "batch_queries": batch_queries, "batch_prototypes": batch_prototypes}
-        return {"loss": loss, "squashed_distances": squashed_distances}
+        loss = self.model.loss_func(similarities, batch.cosine_targets)
+        return {"loss": loss, "similarities": similarities}
 
     def step(self, batch, split: str) -> Mapping[str, Any]:
 
@@ -86,19 +81,11 @@ class MyLightningModule(pl.LightningModule):
 
         # shape (num_queries_batch) = num_queries_per_class * num_classes_per_episode * batch_size * num_classes_per_episode
 
-        # cos_sim = torch.einsum(
-        #     "bh,bh->b", (F.normalize(step_out["batch_queries"]), F.normalize(step_out["batch_prototypes"]))
-        # )
-
-        # num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
-        # reshaped_cos_sim = cos_sim.reshape((-1, num_classes_per_episode))
-        # pred_labels = torch.argmax(reshaped_cos_sim, dim=-1)
-
-        dis = step_out["squashed_distances"]
+        similarities = step_out["similarities"]
 
         num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
-        reshaped_cos_sim = dis.reshape((-1, num_classes_per_episode))
-        pred_labels = torch.argmin(reshaped_cos_sim, dim=-1)
+        reshaped_similarities = similarities.reshape((-1, num_classes_per_episode))
+        pred_labels = torch.argmax(reshaped_similarities, dim=-1)
 
         target_labels = batch.label_targets
 

@@ -1,37 +1,33 @@
+import abc
 from typing import Dict, List
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from hydra.utils import instantiate
 from torch_geometric.data import Batch
-from torch_geometric.nn import global_mean_pool
-from torch_geometric.nn.conv.gat_conv import GATConv
 
 from fs_grl.data.episode import EpisodeBatch, EpisodeHParams
-from fs_grl.modules.mlp import MLP
 
 
-class GNNEncoder(nn.Module):
+class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
     def __init__(
-        self, feature_dim, hidden_dim, output_dim, num_classes, num_mlp_layers, episode_hparams: EpisodeHParams
+        self,
+        cfg,
+        feature_dim,
+        hidden_dim,
+        embedding_dim,
+        num_classes,
+        episode_hparams: EpisodeHParams,
     ):
         super().__init__()
+        self.cfg = cfg
 
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
         self.num_classes = num_classes
-        self.output_dim = output_dim
+        self.embedding_dim = embedding_dim
 
-        self.conv1 = GATConv(in_channels=self.feature_dim, out_channels=self.hidden_dim)
-        self.conv2 = GATConv(in_channels=self.hidden_dim, out_channels=self.hidden_dim)
         self.episode_hparams = episode_hparams
-
-        self.mlp = MLP(
-            num_layers=num_mlp_layers,
-            input_dim=self.hidden_dim,
-            output_dim=self.output_dim,
-            hidden_dim=self.hidden_dim,
-        )
 
         self.num_supports_per_episode = (
             self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
@@ -40,12 +36,9 @@ class GNNEncoder(nn.Module):
             self.episode_hparams.num_queries_per_class * self.episode_hparams.num_classes_per_episode
         )
 
-        self.similarity_network = MLP(
-            num_layers=2,
-            input_dim=self.output_dim * 2,
-            output_dim=1,
-            hidden_dim=self.output_dim * 2,
-            non_linearity="tanh",
+        self.embedder = instantiate(
+            self.cfg.embedder,
+            feature_dim=self.feature_dim,
         )
 
     def embed_supports(self, supports: Batch):
@@ -70,44 +63,28 @@ class GNNEncoder(nn.Module):
         :return: embedded graphs, each graph embedded as a point in R^{E}
         """
 
-        # X ~ (num_nodes_in_batch, feature_dim)
-        # edge_index ~ (2, num_edges_in_batch)
-        X, edge_index = batch.x, batch.edge_index
-
-        # h1 ~ (num_nodes_in_batch, hidden_dim)
-        h1 = self.conv1(X, edge_index)
-        h1 = F.relu(h1)
-
-        # h2 ~ (num_nodes_in_batch, hidden_dim)
-        h2 = self.conv2(h1, edge_index)
-        h2 = F.relu(h2)
-
-        # out ~ (num_nodes_in_batch, output_dim)
-        node_out_features = self.mlp(h2)
-
-        # pooled_out ~ (num_samples_in_batch, embedding_dim)
-        pooled_out = global_mean_pool(node_out_features, batch.batch)
-        return pooled_out
+        embedded_batch = self.embedder(batch)
+        return embedded_batch
 
     def get_class_prototypes(self, embedded_supports: torch.Tensor, batch: EpisodeBatch):
         """
+        Computes the prototype of each class as the mean of the embedded supports for that class
 
+        :param batch:
         :param embedded_supports: tensor ~ (num_supports_batch, embedding_dim)
         :return:
         """
         device = embedded_supports.device
-        batch_size = batch.num_episodes
+        num_episodes = batch.num_episodes
 
         # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
-        embedded_supports_per_episode = embedded_supports.split(tuple([self.num_supports_per_episode] * batch_size))
-
+        embedded_supports_per_episode = embedded_supports.split(tuple([self.num_supports_per_episode] * num_episodes))
         # sequence of labels for each episode, each has shape (num_supports_per_episode)
-        labels_per_episode = batch.supports.y.split(tuple([self.num_supports_per_episode] * batch_size))
-
-        classes_per_episode = batch.labels.split([self.episode_hparams.num_classes_per_episode] * batch_size)
+        labels_per_episode = batch.supports.y.split(tuple([self.num_supports_per_episode] * num_episodes))
+        classes_per_episode = batch.labels.split([self.episode_hparams.num_classes_per_episode] * num_episodes)
 
         all_class_prototypes = []
-        for episode in range(batch_size):
+        for episode in range(num_episodes):
 
             embedded_supports = embedded_supports_per_episode[episode]
             labels = labels_per_episode[episode]
@@ -163,6 +140,10 @@ class GNNEncoder(nn.Module):
 
         return torch.cat(batch_queries, dim=0), torch.cat(batch_prototypes, dim=0)
 
+    @abc.abstractmethod
+    def get_similarities(self, queries, prototypes):
+        pass
+
     def forward(self, batch: EpisodeBatch):
         """
         :param supports:
@@ -182,11 +163,6 @@ class GNNEncoder(nn.Module):
         # both shape (num_queries_batch*num_classes, hidden_dim)
         batch_queries, batch_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
 
-        merged_query_prototypes = torch.cat((batch_queries, batch_prototypes), dim=-1)
+        similarities = self.get_similarities(batch_queries, batch_prototypes)
 
-        distances = self.similarity_network(merged_query_prototypes)
-
-        squashed_distances = nn.functional.tanh(distances)
-
-        # return batch_queries, batch_prototypes,
-        return squashed_distances
+        return similarities
