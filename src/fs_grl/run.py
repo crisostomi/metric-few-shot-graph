@@ -63,8 +63,8 @@ def run(cfg: DictConfig) -> str:
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     # Instantiate model
-    pylogger.info(f"Instantiating <{cfg.nn.module['_target_']}>")
-    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.module, _recursive_=False, metadata=metadata)
+    pylogger.info(f"Instantiating <{cfg.nn.model['_target_']}>")
+    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model, _recursive_=False, metadata=metadata)
 
     # Instantiate the callbacks
     template_core: NNTemplateCore = NNTemplateCore(
@@ -88,14 +88,9 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
 
-    if fast_dev_run:
-        pylogger.info("Skipping testing in 'fast_dev_run' mode!")
-    else:
-        pass
-        # pylogger.info("Starting testing!")
-        # trainer.test(datamodule=datamodule)
+    # META-TESTING
+    # trainer.fit(model=TransferLearningBaseline(model.model), train_dataloader=datamodule.test_dataloader())
 
-    # Logger closing to release resources/avoid multi-run conflicts
     if logger is not None:
         logger.experiment.finish()
 

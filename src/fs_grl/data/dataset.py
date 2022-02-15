@@ -28,6 +28,19 @@ def get_cls_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
     return res
 
 
+class TransferSourceDataset(Dataset):
+    def __init__(self, samples, class_to_label_dict, stage_labels):
+        self.samples = samples
+        self.class_to_label_dict = class_to_label_dict
+        self.stage_labels = stage_labels
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        return self.samples[idx]
+
+
 class EpisodicDataset(ABC):
     def __init__(
         self,

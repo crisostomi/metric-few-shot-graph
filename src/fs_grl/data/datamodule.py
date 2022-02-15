@@ -3,22 +3,24 @@ import logging
 import math
 import operator
 import random
+from collections import Counter
 from functools import partial
 from itertools import groupby
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import hydra
 import numpy as np
 import omegaconf
 import pytorch_lightning as pl
+import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
-from torch_geometric.data import Data
+from torch_geometric.data import Batch, Data
 
 from nn_core.common import PROJECT_ROOT
 
-from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset
+from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset, TransferSourceDataset
 from fs_grl.data.episode import EpisodeBatch, EpisodeHParams
 from fs_grl.data.io_utils import load_data, load_query_support_idxs
 
@@ -26,7 +28,7 @@ pylogger = logging.getLogger(__name__)
 
 
 class MetaData:
-    def __init__(self, class_to_label_dict, feature_dim, episode_hparams: EpisodeHParams):
+    def __init__(self, class_to_label_dict, feature_dim, episode_hparams: EpisodeHParams, classes_split: Dict):
         """The data information the Lightning Module will be provided with.
         This is a "bridge" between the Lightning DataModule and the Lightning Module.
         There is no constraint on the class name nor in the stored information, as long as it exposes the
@@ -47,6 +49,7 @@ class MetaData:
         self.feature_dim = feature_dim
         self.num_classes = len(class_to_label_dict)
         self.episode_hparams = episode_hparams
+        self.classes_split = classes_split
 
     def save(self, dst_path: Path) -> None:
         """Serialize the MetaData attributes into the zipped checkpoint in dst_path.
@@ -59,6 +62,7 @@ class MetaData:
             "classes_to_label_dict": self.classes_to_label_dict,
             "feature_dim": self.feature_dim,
             "episode_hparams": self.episode_hparams,
+            "classes_split": self.classes_split,
         }
 
         (dst_path / "data.json").write_text(json.dumps(data, indent=4, default=lambda x: x.__dict__))
@@ -79,10 +83,11 @@ class MetaData:
             class_to_label_dict=data["classes_to_label_dict"],
             feature_dim=data["feature_dim"],
             episode_hparams=EpisodeHParams(**data["episode_hparams"]),
+            classes_split=data["classes_split"],
         )
 
 
-class GraphDataModule(pl.LightningDataModule):
+class GraphFewShotDataModule(pl.LightningDataModule):
     def __init__(
         self,
         dataset_name,
@@ -132,6 +137,8 @@ class GraphDataModule(pl.LightningDataModule):
         self.base_labels = set([self.class_to_label_dict[stage_cls] for stage_cls in self.base_classes])
         self.novel_labels = set([self.class_to_label_dict[stage_cls] for stage_cls in self.novel_classes])
 
+        self.labels_split = {"base": self.base_labels, "novel": self.novel_labels}
+
         self.feature_dim = self.data_list[0].x.shape[-1]
 
         self.data_list_by_label = {
@@ -155,6 +162,7 @@ class GraphDataModule(pl.LightningDataModule):
             class_to_label_dict=self.class_to_label_dict,
             feature_dim=self.feature_dim,
             episode_hparams=self.episode_hparams,
+            classes_split={"base": self.base_classes, "novel": self.novel_classes},
         )
 
         return metadata
@@ -184,10 +192,57 @@ class GraphDataModule(pl.LightningDataModule):
 
         return query_idxs, support_idxs
 
-    def prepare_data(self) -> None:
-        # download only
+    def split_base_novel_samples(self) -> Tuple[List[Data], List[Data]]:
+        base_samples: List[Data] = [
+            sample for key, samples in self.data_list_by_label.items() if key in self.base_labels for sample in samples
+        ]
 
-        pass
+        novel_samples = [
+            sample for key, samples in self.data_list_by_label.items() if key in self.novel_labels for sample in samples
+        ]
+        return base_samples, novel_samples
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(" f"{self.datasets=}, " f"{self.num_workers=}, " f"{self.batch_size=})"
+
+
+class GraphMetaDataModule(GraphFewShotDataModule):
+    def __init__(
+        self,
+        dataset_name,
+        data_dir,
+        datasets: DictConfig,
+        num_workers: DictConfig,
+        batch_size: DictConfig,
+        gpus: Optional[Union[List[int], str, int]],
+        num_supports_per_class,
+        classes_split_path: Optional[str],
+        query_support_path,
+        query_support_ratio,
+        num_episodes,
+        num_queries_per_class,
+        num_classes_per_episode,
+        separated_query_support,
+        **kwargs,
+    ):
+
+        super().__init__(
+            dataset_name,
+            data_dir,
+            datasets,
+            num_workers,
+            batch_size,
+            gpus,
+            num_supports_per_class,
+            classes_split_path,
+            query_support_path,
+            query_support_ratio,
+            num_episodes,
+            num_queries_per_class,
+            num_classes_per_episode,
+            separated_query_support,
+            **kwargs,
+        )
 
     def setup(self, stage: Optional[str] = None):
 
@@ -202,13 +257,6 @@ class GraphDataModule(pl.LightningDataModule):
                 base_queries = [base_samples[idx] for idx in base_query_idxs]
 
                 base_samples = {"supports": base_supports, "queries": base_queries}
-
-                # novel_query_idxs, novel_support_idxs = self.split_query_support(novel_samples)
-                #
-                # novel_supports = [novel_samples[idx] for idx in novel_support_idxs]
-                # novel_queries = [novel_samples[idx] for idx in novel_query_idxs]
-                #
-                # novel_samples = {'supports': novel_supports, 'queries': novel_queries}
 
             self.train_dataset = IterableEpisodicDataset(
                 samples=base_samples,
@@ -233,16 +281,6 @@ class GraphDataModule(pl.LightningDataModule):
                     separated_query_support=False,
                 )
             ]
-
-    def split_base_novel_samples(self) -> Tuple[List[Data], List[Data]]:
-        base_samples: List[Data] = [
-            sample for key, samples in self.data_list_by_label.items() if key in self.base_labels for sample in samples
-        ]
-
-        novel_samples = [
-            sample for key, samples in self.data_list_by_label.items() if key in self.novel_labels for sample in samples
-        ]
-        return base_samples, novel_samples
 
     def train_dataloader(self) -> DataLoader:
         collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=self.episode_hparams)
@@ -269,22 +307,113 @@ class GraphDataModule(pl.LightningDataModule):
             for dataset in self.val_datasets
         ]
 
+
+class GraphTransferDataModule(GraphFewShotDataModule):
+    def __init__(
+        self,
+        dataset_name,
+        data_dir,
+        datasets: DictConfig,
+        num_workers: DictConfig,
+        batch_size: DictConfig,
+        gpus: Optional[Union[List[int], str, int]],
+        num_supports_per_class,
+        train_val_split_ratio=0.8,
+        **kwargs,
+    ):
+        super().__init__(
+            dataset_name, data_dir, datasets, num_workers, batch_size, gpus, num_supports_per_class, **kwargs
+        )
+        self.train_val_split_ratio = train_val_split_ratio
+
+    def setup(self, stage: Optional[str] = None):
+
+        if stage is None or stage == "fit":
+
+            base_samples, novel_samples = self.split_base_novel_samples()
+
+            self.convert_to_local_labels(base_samples, "base")
+
+            base_train_samples, base_val_samples = self.split_train_val(base_samples)
+
+            self.train_dataset = TransferSourceDataset(
+                samples=base_train_samples,
+                class_to_label_dict=self.class_to_label_dict,
+                stage_labels=self.base_labels,
+            )
+
+            self.val_datasets = [
+                TransferSourceDataset(
+                    samples=base_val_samples,
+                    stage_labels=self.base_labels,
+                    class_to_label_dict=self.class_to_label_dict,
+                )
+            ]
+            # self.convert_to_local_labels(novel_samples, "novel")
+
+    def convert_to_local_labels(self, samples, base_or_novel):
+
+        stage_labels = self.labels_split[base_or_novel]
+
+        self.global_to_local_labels = {label: ind for ind, label in enumerate(sorted(stage_labels))}
+
+        for sample in samples:
+            sample.y.apply_(lambda x: self.global_to_local_labels[x])
+
+    def split_train_val(self, data_list):
+        idxs = np.arange(len(data_list))
+        random.shuffle(idxs)
+
+        train_upperbound = math.ceil(self.train_val_split_ratio * len(data_list))
+        train_idxs = idxs[:train_upperbound]
+        val_idxs = idxs[train_upperbound:]
+
+        train_samples = [data_list[idx] for idx in train_idxs]
+        val_samples = [data_list[idx] for idx in val_idxs]
+
+        print(f"Train label dist: {Counter(sample.y.item() for sample in train_samples)}")
+        print(f"Val label dist: {Counter(sample.y.item() for sample in val_samples)}")
+        return train_samples, val_samples
+
+    # meta-training training
+    def train_dataloader(self) -> DataLoader:
+
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size.train,
+            collate_fn=Batch.from_data_list,
+            num_workers=self.num_workers.train,
+            pin_memory=self.pin_memory,
+        )
+
+    # meta-training validation
+    def val_dataloader(self) -> Sequence[EpisodicDataLoader]:
+        return [
+            DataLoader(
+                dataset,
+                shuffle=False,
+                batch_size=self.batch_size.val,
+                num_workers=self.num_workers.val,
+                pin_memory=self.pin_memory,
+                collate_fn=Batch.from_data_list,
+            )
+            for dataset in self.val_datasets
+        ]
+
+    # meta-testing
     def test_dataloader(self) -> Sequence[EpisodicDataLoader]:
         collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=self.episode_hparams)
         return [
             DataLoader(
                 dataset,
                 shuffle=False,
-                collate_fn=collate_fn,
-                batch_size=self.batch_size.test,
+                batch_size=1,
                 num_workers=self.num_workers.test,
                 pin_memory=self.pin_memory,
+                collate_fn=collate_fn,
             )
             for dataset in self.test_datasets
         ]
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(" f"{self.datasets=}, " f"{self.num_workers=}, " f"{self.batch_size=})"
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")

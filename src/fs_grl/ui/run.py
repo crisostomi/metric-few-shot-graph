@@ -5,12 +5,12 @@ import wandb
 
 from nn_core.ui import select_checkpoint
 
-from fs_grl.pl_modules.pl_module import MyLightningModule
+from fs_grl.pl_modules.dml_baseline import DMLBaseline
 
 
 @st.cache(allow_output_mutation=True)
 def get_model(checkpoint_path: Path):
-    return MyLightningModule.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
+    return DMLBaseline.load_from_checkpoint(checkpoint_path=str(checkpoint_path))
 
 
 if wandb.api.api_key is None:
@@ -20,5 +20,5 @@ if wandb.api.api_key is None:
 st.sidebar.subheader(f"Logged in W&B as: {wandb.api.viewer()['entity']}")
 
 checkpoint_path = select_checkpoint()
-model: MyLightningModule = get_model(checkpoint_path=checkpoint_path)
+model: DMLBaseline = get_model(checkpoint_path=checkpoint_path)
 model

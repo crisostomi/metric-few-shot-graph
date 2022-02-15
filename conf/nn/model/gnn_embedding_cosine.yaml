@@ -1,13 +1,19 @@
-_target_: fs_grl.modules.gnn_embedding_cosine.GNNEmbeddingCosine
-hidden_dim: 64
-embedding_dim: 64
-feature_dim: ???
-num_classes: ???
-episode_hparams: ???
+_target_: fs_grl.pl_modules.dml_baseline.DMLBaseline
 
-embedder:
-  _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
-  feature_dim: ???
-  num_mlp_layers: 1
-  embedding_dim: 64
+optimizer:
+  _target_: torch.optim.Adam
+
+model:
+  _target_: fs_grl.modules.gnn_embedding_cosine.GNNEmbeddingCosine
   hidden_dim: 64
+  embedding_dim: 64
+  feature_dim: ???
+  num_classes: ???
+  episode_hparams: ???
+
+  embedder:
+    _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
+    feature_dim: ???
+    num_mlp_layers: 1
+    embedding_dim: 64
+    hidden_dim: 64

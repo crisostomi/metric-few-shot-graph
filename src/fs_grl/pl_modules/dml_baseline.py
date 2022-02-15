@@ -20,7 +20,7 @@ from fs_grl.data.episode import EpisodeBatch
 pylogger = logging.getLogger(__name__)
 
 
-class MyLightningModule(pl.LightningModule):
+class DMLBaseline(pl.LightningModule):
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
@@ -31,11 +31,6 @@ class MyLightningModule(pl.LightningModule):
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
         self.metadata = metadata
-
-        metric = torchmetrics.Accuracy()
-        self.train_accuracy = metric.clone()
-        self.val_accuracy = metric.clone()
-        self.test_accuracy = metric.clone()
 
         self.model = instantiate(
             self.hparams.model,
