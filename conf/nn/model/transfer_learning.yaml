@@ -1,13 +1,49 @@
-_target_: fs_grl.pl_modules.transfer_learning_source.TransferLearningSource
+source:
+  _target_: fs_grl.pl_modules.transfer_learning_source.TransferLearningSource
 
-classifier_num_mlp_layers: 2
+  classifier_num_mlp_layers: 2
 
-optimizer:
-  _target_: torch.optim.Adam
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 1e-3
 
-embedder:
-  _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
-  feature_dim: ???
-  num_mlp_layers: 2
-  embedding_dim: 64
-  hidden_dim: 64
+  embedder:
+    _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
+    feature_dim: ???
+    num_mlp_layers: 2
+    embedding_dim: 64
+    hidden_dim: 64
+    num_convs: 2
+    dropout_rate: 0.5
+
+#  lr_scheduler:
+#    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+#    T_0: 10
+#    T_mult: 2
+#    eta_min: 0 # min value for the lr
+#    last_epoch: -1
+#    verbose: False
+
+#    _target_: fs_grl.modules.gin.GINEmbedder
+#    num_layers: 2
+#    num_mlp_layers: 2
+#    feature_dim: ???
+#    hidden_dim: 64
+#    output_dim: 64
+#    final_dropout: 0.5
+#    learn_eps: true
+#    graph_pooling_type: sum
+#    neighbor_pooling_type: sum
+
+
+
+target:
+  _target_: fs_grl.pl_modules.transfer_learning_target.TransferLearningTarget
+
+  embedder: ???
+  classifier_num_mlp_layers: 2
+  initial_state_path: ${core.storage_dir}/pretrained.ckpt
+
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 7e-2

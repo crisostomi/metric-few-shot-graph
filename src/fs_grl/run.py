@@ -15,6 +15,7 @@ from nn_core.serialization import NNCheckpointIO
 
 # Force the execution of __init__.py if this file is executed directly.
 import fs_grl  # noqa
+from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget
 
 pylogger = logging.getLogger(__name__)
 
@@ -63,8 +64,11 @@ def run(cfg: DictConfig) -> str:
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     # Instantiate model
-    pylogger.info(f"Instantiating <{cfg.nn.model['_target_']}>")
-    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model, _recursive_=False, metadata=metadata)
+    pylogger.info(f"Instantiating <{cfg.nn.model.source['_target_']}>")
+
+    # META-TRAINING
+    # TODO: find a better way to differentiate source and target
+    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model.source, _recursive_=False, metadata=metadata)
 
     # Instantiate the callbacks
     template_core: NNTemplateCore = NNTemplateCore(
@@ -88,8 +92,23 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
 
-    # META-TESTING
-    # trainer.fit(model=TransferLearningBaseline(model.model), train_dataloader=datamodule.test_dataloader())
+    pylogger.info("Starting meta-testing.")
+
+    callbacks: List[Callback] = build_callbacks(cfg.train["meta-testing-callbacks"], template_core)
+
+    trainer = pl.Trainer(
+        default_root_dir=storage_dir,
+        logger=logger,
+        callbacks=callbacks,
+        **cfg.train["meta-testing-trainer"],
+        checkpoint_callback=False,
+    )
+
+    target_model: pl.LightningModule = hydra.utils.instantiate(
+        cfg.nn.model.target, _recursive_=False, metadata=metadata, embedder=model.embedder
+    )
+
+    trainer.fit(model=target_model, train_dataloader=datamodule.test_dataloader()[0])
 
     if logger is not None:
         logger.experiment.finish()

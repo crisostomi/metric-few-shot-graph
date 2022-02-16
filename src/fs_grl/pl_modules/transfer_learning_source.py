@@ -13,19 +13,21 @@ from hydra.utils import instantiate
 from plotly.graph_objs import Annotation
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
+from torch.nn import functional as F
 from torch.optim import Optimizer
-from torchmetrics import F1, Accuracy, ConfusionMatrix, FBeta
+from torchmetrics import Accuracy, ConfusionMatrix, FBeta
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.modules.mlp import MLP
+from fs_grl.pl_modules.transfer_learning import TransferLearningBaseline
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningSource(pl.LightningModule):
+class TransferLearningSource(TransferLearningBaseline):
     logger: NNLogger
 
     def __init__(self, classifier_num_mlp_layers, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
@@ -60,11 +62,11 @@ class TransferLearningSource(pl.LightningModule):
         )
         self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=len(self.classes))})
 
-        self.linear_classifier = MLP(
-            num_layers=self.classifier_num_mlp_layers,
+        self.classifier = MLP(
+            num_layers=2,
             input_dim=self.embedder.embedding_dim,
             output_dim=len(self.classes),
-            hidden_dim=self.embedder.embedding_dim,
+            hidden_dim=self.embedder.embedding_dim // 2,
         )
 
         self.loss_func = nn.CrossEntropyLoss()
@@ -78,7 +80,7 @@ class TransferLearningSource(pl.LightningModule):
         """
 
         embeddings = self.embedder(batch)
-        logits = self.linear_classifier(embeddings)
+        logits = self.classifier(embeddings)
 
         loss = self.loss_func(logits, batch.y)
         return {"loss": loss, "logits": logits}
@@ -120,30 +122,6 @@ class TransferLearningSource(pl.LightningModule):
 
         return step_out
 
-    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        to_log = {}
-
-        for metric_name, metric in getattr(self, f"{'val'}_metrics").items():
-            if "none" in metric_name:
-                for label, score in list(
-                    zip(
-                        self.classes,
-                        metric.compute(),
-                    )
-                ):
-                    to_log[f"{metric_name}/{label}"] = score
-                metric.reset()
-
-            # Confusion matrix handling
-            if "cm" in metric_name:
-                fig: go.Figure = self.plot_cm(cm=metric)
-                wandb.log(
-                    data={f"{'val'}/confusion_matrix": fig},
-                )
-                metric.reset()
-
-        self.log_dict(to_log, on_step=False, on_epoch=True)
-
     def configure_optimizers(
         self,
     ) -> Union[Optimizer, Tuple[Sequence[Optimizer], Sequence[Any]]]:
@@ -164,52 +142,6 @@ class TransferLearningSource(pl.LightningModule):
             return [opt]
         scheduler = hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt)
         return [opt], [scheduler]
-
-    def plot_cm(self, cm: ConfusionMatrix) -> go.Figure:
-        z: np.ndarray = cm.compute().cpu().numpy()
-        # TODO
-        x = y = [self.metadata.classes_to_label_dict[c] for c in self.classes]
-
-        hover_text = [[str(y) for y in x] for x in z]
-
-        z = (z / z.sum(axis=1)).round(2)
-        z_text = [[str(y) for y in x] for x in z]
-
-        fig = go.Figure(
-            data=go.Heatmap(
-                z=z,
-                text=z_text,
-                x=x,
-                y=y,
-                customdata=hover_text,
-                colorscale="Blues",
-                zmin=0,
-                zmax=1,
-                hovertemplate="<br>".join(
-                    (
-                        "<b>Predicted</b>: %{y}",
-                        "<b>Label</b>: %{x}",
-                        "",
-                        "<b>Row-normalized</b>: %{z:.3f}",
-                        "<b>Original</b>: %{customdata}",
-                    )
-                ),
-            )
-        )
-
-        annotations = []
-        for n, row in enumerate(z):
-            for m, val in enumerate(row):
-                annotations.append(Annotation(text=z[n][m], x=x[m], y=y[n], xref="x1", yref="y1", showarrow=False))
-        fig.update_layout(
-            font=dict(family="Courier New, monospace", size=20, color="black"),
-            annotations=annotations,
-            xaxis_title="Prediction",
-            yaxis_title="Target",
-        )
-        fig.update_yaxes(autorange="reversed")
-
-        return fig
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")

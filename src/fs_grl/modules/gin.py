@@ -5,12 +5,12 @@ from torch import nn
 from fs_grl.modules.mlp import MLP
 
 
-class GraphCNN(nn.Module):
+class GINEmbedder(nn.Module):
     def __init__(
         self,
         num_layers,
         num_mlp_layers,
-        input_dim,
+        feature_dim,
         hidden_dim,
         output_dim,
         final_dropout,
@@ -31,7 +31,7 @@ class GraphCNN(nn.Module):
         device: which device to use
         """
 
-        super(GraphCNN, self).__init__()
+        super(GINEmbedder, self).__init__()
 
         self.final_dropout = final_dropout
         self.num_layers = num_layers
@@ -40,27 +40,23 @@ class GraphCNN(nn.Module):
         self.learn_eps = learn_eps
         self.eps = nn.Parameter(torch.zeros(self.num_layers - 1))
 
-        # List of MLPs
-        self.mlps = torch.nn.ModuleList()
+        self.MLPs = torch.nn.ModuleList()
 
-        # List of batchnorms applied to the output of MLP (input of the final prediction linear layer)
         self.batch_norms = torch.nn.ModuleList()
 
         for layer in range(self.num_layers - 1):
-            if layer == 0:
-                self.mlps.append(MLP(num_mlp_layers, input_dim, hidden_dim, hidden_dim))
-            else:
-                self.mlps.append(MLP(num_mlp_layers, hidden_dim, hidden_dim, hidden_dim))
+            layer_input_dim = feature_dim if layer == 0 else hidden_dim
+            self.MLPs.append(MLP(num_mlp_layers, layer_input_dim, hidden_dim, hidden_dim))
 
             self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
 
-        # Linear function that maps the hidden representation at dofferemt layers into a prediction score
+        # Linear function that maps the hidden representation at different layers into a prediction score
         self.linears_prediction = torch.nn.ModuleList()
         for layer in range(num_layers):
-            if layer == 0:
-                self.linears_prediction.append(nn.Linear(input_dim, output_dim))
-            else:
-                self.linears_prediction.append(nn.Linear(hidden_dim, output_dim))
+            layer_input_dim = feature_dim if layer == 0 else hidden_dim
+            self.linears_prediction.append(nn.Linear(layer_input_dim, output_dim))
+
+        self.embedding_dim = output_dim  # TODO: fix
 
     def __preprocess_neighbors_maxpool(self, batch_graph):
         # create padded_neighbor_list in concatenated graph
@@ -72,17 +68,13 @@ class GraphCNN(nn.Module):
         start_idx = [0]
 
         for i, graph in enumerate(batch_graph):
-            start_idx.append(start_idx[i] + len(graph.g))
+            start_idx.append(start_idx[i] + len(graph.x))
             padded_neighbors = []
             for j in range(len(graph.neighbors)):
                 # add off-set values to the neighbor indices
                 pad = [n + start_idx[i] for n in graph.neighbors[j]]
                 # padding, dummy data is assumed to be stored in -1
                 pad.extend([-1] * (max_deg - len(pad)))
-
-                # Add center nodes in the maxpooling if learn_eps is False, i.e., aggregate center nodes and neighbor nodes altogether.
-                if not self.learn_eps:
-                    pad.append(j + start_idx[i])
 
                 padded_neighbors.append(pad)
             padded_neighbor_list.extend(padded_neighbors)
@@ -92,53 +84,46 @@ class GraphCNN(nn.Module):
     def __preprocess_neighbors_sumavepool(self, batch_graph):
         # create block diagonal sparse matrix
 
+        ref_tensor = batch_graph[0].x
+
         edge_mat_list = []
         start_idx = [0]
         for i, graph in enumerate(batch_graph):
-            start_idx.append(start_idx[i] + len(graph.g))
-            edge_mat_list.append(graph.edge_mat + start_idx[i])
-        Adj_block_idx = torch.cat(edge_mat_list, 1)
-        Adj_block_elem = torch.ones(Adj_block_idx.shape[1])
+            start_idx.append(start_idx[i] + len(graph.x))
+            edge_mat_list.append(graph.edge_index + start_idx[i])
+        Adj_block_idx = torch.cat(edge_mat_list, 1).type_as(ref_tensor).long()
+        Adj_block_elem = torch.ones(Adj_block_idx.shape[1]).type_as(ref_tensor).long()
 
-        # Add self-loops in the adjacency matrix if learn_eps is False, i.e., aggregate center nodes and neighbor nodes altogether.
+        Adj_block = torch.sparse.FloatTensor(
+            Adj_block_idx, Adj_block_elem, torch.Size([start_idx[-1], start_idx[-1]])
+        ).float()
 
-        if not self.learn_eps:
-            num_node = start_idx[-1]
-            self_loop_edge = torch.LongTensor([range(num_node), range(num_node)])
-            elem = torch.ones(num_node)
-            Adj_block_idx = torch.cat([Adj_block_idx, self_loop_edge], 1)
-            Adj_block_elem = torch.cat([Adj_block_elem, elem], 0)
-
-        Adj_block = torch.sparse.FloatTensor(Adj_block_idx, Adj_block_elem, torch.Size([start_idx[-1], start_idx[-1]]))
-
-        return Adj_block.to(self.device)
+        return Adj_block
 
     def __preprocess_graphpool(self, batch_graph):
         # create sum or average pooling sparse matrix over entire nodes in each graph (num graphs x num nodes)
 
         start_idx = [0]
-
+        ref_tensor = batch_graph[0].x
         # compute the padded neighbor list
         for i, graph in enumerate(batch_graph):
-            start_idx.append(start_idx[i] + len(graph.g))
+            start_idx.append(start_idx[i] + len(graph.x))
 
         idx = []
         elem = []
         for i, graph in enumerate(batch_graph):
-            # average pooling
             if self.graph_pooling_type == "average":
-                elem.extend([1.0 / len(graph.g)] * len(graph.g))
-
+                elem.extend([1.0 / len(graph.x)] * len(graph.x))
             else:
                 # sum pooling
-                elem.extend([1] * len(graph.g))
+                elem.extend([1] * len(graph.x))
 
             idx.extend([[i, j] for j in range(start_idx[i], start_idx[i + 1], 1)])
         elem = torch.FloatTensor(elem)
         idx = torch.LongTensor(idx).transpose(0, 1)
         graph_pool = torch.sparse.FloatTensor(idx, elem, torch.Size([len(batch_graph), start_idx[-1]]))
 
-        return graph_pool.to(self.device)
+        return graph_pool.cuda()
 
     def maxpool(self, h, padded_neighbor_list):
         # Element-wise minimum will never affect max-pooling
@@ -164,7 +149,7 @@ class GraphCNN(nn.Module):
 
         # Reweights the center node representation when aggregating it with its neighbors
         pooled = pooled + (1 + self.eps[layer]) * h
-        pooled_rep = self.mlps[layer](pooled)
+        pooled_rep = self.MLPs[layer](pooled)
         h = self.batch_norms[layer](pooled_rep)
 
         # non-linearity
@@ -186,7 +171,7 @@ class GraphCNN(nn.Module):
                 pooled = pooled / degree
 
         # representation of neighboring and center nodes
-        pooled_rep = self.mlps[layer](pooled)
+        pooled_rep = self.MLPs[layer](pooled)
 
         h = self.batch_norms[layer](pooled_rep)
 
@@ -195,7 +180,9 @@ class GraphCNN(nn.Module):
         return h
 
     def forward(self, batch_graph):
-        X_concat = torch.cat([graph.node_features for graph in batch_graph], 0).to(self.device)
+        X_concat = batch_graph.x
+        batch_graph = batch_graph.to_data_list()
+
         graph_pool = self.__preprocess_graphpool(batch_graph)
 
         if self.neighbor_pooling_type == "max":
@@ -212,10 +199,6 @@ class GraphCNN(nn.Module):
                 h = self.next_layer_eps(h, layer, padded_neighbor_list=padded_neighbor_list)
             elif not self.neighbor_pooling_type == "max" and self.learn_eps:
                 h = self.next_layer_eps(h, layer, Adj_block=Adj_block)
-            elif self.neighbor_pooling_type == "max" and not self.learn_eps:
-                h = self.next_layer(h, layer, padded_neighbor_list=padded_neighbor_list)
-            elif not self.neighbor_pooling_type == "max" and not self.learn_eps:
-                h = self.next_layer(h, layer, Adj_block=Adj_block)
 
             hidden_rep.append(h)
 

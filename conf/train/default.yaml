@@ -7,13 +7,23 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 20
+  max_epochs: 100
 #  max_steps: 10000
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
   val_check_interval: 1.0
+  log_every_n_steps: 1
+
   deterministic: ${train.deterministic}
+
+meta-testing-trainer:
+  gpus: ${train.trainer.gpus}
+  precision: ${train.trainer.precision}
+  max_epochs: 1
+  deterministic: ${train.deterministic}
+  log_every_n_steps: 1
+
 
 restore:
   ckpt_or_run_path: null
@@ -25,7 +35,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 42
+    patience: 50
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -43,6 +53,15 @@ callbacks:
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20
 
+meta-testing-callbacks:
+
+  - _target_: pytorch_lightning.callbacks.LearningRateMonitor
+    logging_interval: "step"
+    log_momentum: False
+
+  - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
+    refresh_rate: 20
+
 logging:
   upload:
     run_files: true
@@ -52,7 +71,7 @@ logging:
     _target_: pytorch_lightning.loggers.WandbLogger
 
     project: ${core.project_name}
-    entity: null
+    entity: gladia
     log_model: ${..upload.run_files}
     mode: 'online'
 

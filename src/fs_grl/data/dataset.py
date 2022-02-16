@@ -29,10 +29,8 @@ def get_cls_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
 
 
 class TransferSourceDataset(Dataset):
-    def __init__(self, samples, class_to_label_dict, stage_labels):
+    def __init__(self, samples):
         self.samples = samples
-        self.class_to_label_dict = class_to_label_dict
-        self.stage_labels = stage_labels
 
     def __len__(self):
         return len(self.samples)
@@ -74,7 +72,6 @@ class EpisodicDataset(ABC):
 
         self.stage_labels = stage_labels
         self.class_to_label_dict = class_to_label_dict
-        self.label_set = set([label for label in self.class_to_label_dict.values() if label in self.stage_labels])
 
         self.cls_to_supports: Dict[int : List[Data]] = get_cls_to_samples_map(self.supports)
         self.cls_to_queries: Dict[int : List[Data]] = (
@@ -87,7 +84,7 @@ class EpisodicDataset(ABC):
         and then sampling K supports and Q queries for each class
         :return:
         """
-        labels = sorted(random.sample(self.label_set, self.num_classes_per_episode))
+        labels = sorted(random.sample(self.stage_labels, self.num_classes_per_episode))
 
         supports = []
         queries = []

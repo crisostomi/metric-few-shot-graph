@@ -7,10 +7,11 @@ data:
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   data_path: ${nn.data.data_dir}/${nn.data.dataset_name}.txt
   classes_split_path: ${nn.data.data_dir}/classes_split.json
-  num_episodes: 2000
+  num_train_episodes: 2000
+  num_test_episodes: 500
   query_support_ratio: 0.8
   num_queries_per_class: 15
-  num_classes_per_episode: 3
+  num_classes_per_episode: 2
   num_supports_per_class: 10
   separated_query_support: false
   query_support_path: null
@@ -30,6 +31,6 @@ data:
     test: 4
 
   batch_size:
-    train: 4
+    train: 16
     val: 16
     test: 16

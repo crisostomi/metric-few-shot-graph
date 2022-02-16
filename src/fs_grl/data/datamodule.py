@@ -97,10 +97,11 @@ class GraphFewShotDataModule(pl.LightningDataModule):
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
         num_supports_per_class,
-        classes_split_path: Optional[str] = None,
-        query_support_path: str = None,
-        query_support_ratio: float = 0.8,
-        num_episodes: int = 2000,
+        classes_split_path: Optional[str],
+        query_support_path,
+        query_support_ratio,
+        num_train_episodes,
+        num_test_episodes,
         num_queries_per_class: int = 2,
         num_classes_per_episode: int = 2,
         separated_query_support: bool = False,
@@ -112,7 +113,8 @@ class GraphFewShotDataModule(pl.LightningDataModule):
         self.datasets = datasets
         self.num_workers = num_workers
         self.batch_size = batch_size
-        self.num_episodes = num_episodes
+        self.num_train_episodes = num_train_episodes
+        self.num_test_episodes = num_test_episodes
         self.num_queries_per_class = num_queries_per_class
         self.pin_memory: bool = gpus is not None and str(gpus) != "0"
         self.num_supports_per_class = num_supports_per_class
@@ -134,9 +136,7 @@ class GraphFewShotDataModule(pl.LightningDataModule):
 
         self.data_list, self.class_to_label_dict = load_data(self.data_dir, self.dataset_name, attr_to_consider="both")
 
-        self.base_labels = set([self.class_to_label_dict[stage_cls] for stage_cls in self.base_classes])
-        self.novel_labels = set([self.class_to_label_dict[stage_cls] for stage_cls in self.novel_classes])
-
+        self.base_labels, self.novel_labels = self.get_labels_from_classes()
         self.labels_split = {"base": self.base_labels, "novel": self.novel_labels}
 
         self.feature_dim = self.data_list[0].x.shape[-1]
@@ -146,6 +146,11 @@ class GraphFewShotDataModule(pl.LightningDataModule):
         }
 
         self.num_classes = len(self.class_to_label_dict)
+
+    def get_labels_from_classes(self):
+        base_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.base_classes])
+        novel_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.novel_classes])
+        return base_labels, novel_labels
 
     @property
     def metadata(self) -> MetaData:
@@ -219,7 +224,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         classes_split_path: Optional[str],
         query_support_path,
         query_support_ratio,
-        num_episodes,
+        num_train_episodes,
+        num_test_episodes,
         num_queries_per_class,
         num_classes_per_episode,
         separated_query_support,
@@ -227,20 +233,21 @@ class GraphMetaDataModule(GraphFewShotDataModule):
     ):
 
         super().__init__(
-            dataset_name,
-            data_dir,
-            datasets,
-            num_workers,
-            batch_size,
-            gpus,
-            num_supports_per_class,
-            classes_split_path,
-            query_support_path,
-            query_support_ratio,
-            num_episodes,
-            num_queries_per_class,
-            num_classes_per_episode,
-            separated_query_support,
+            dataset_name=dataset_name,
+            data_dir=data_dir,
+            datasets=datasets,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            gpus=gpus,
+            num_supports_per_class=num_supports_per_class,
+            classes_split_path=classes_split_path,
+            query_support_path=query_support_path,
+            query_support_ratio=query_support_ratio,
+            num_train_episodes=num_train_episodes,
+            num_test_episodes=num_test_episodes,
+            num_queries_per_class=num_queries_per_class,
+            num_classes_per_episode=num_classes_per_episode,
+            separated_query_support=separated_query_support,
             **kwargs,
         )
 
@@ -260,7 +267,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
             self.train_dataset = IterableEpisodicDataset(
                 samples=base_samples,
-                n_episodes=self.num_episodes,
+                n_episodes=self.num_train_episodes,
                 class_to_label_dict=self.class_to_label_dict,
                 stage_labels=self.base_labels,
                 num_supports_per_class=self.num_supports_per_class,
@@ -272,7 +279,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             self.val_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
-                    n_episodes=self.num_episodes,
+                    n_episodes=self.num_train_episodes,
                     num_supports_per_class=self.num_supports_per_class,
                     stage_labels=self.novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
@@ -318,7 +325,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
         num_supports_per_class,
-        train_val_split_ratio=0.8,
+        train_val_split_ratio=0.9,
         **kwargs,
     ):
         super().__init__(
@@ -332,33 +339,53 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
             base_samples, novel_samples = self.split_base_novel_samples()
 
-            self.convert_to_local_labels(base_samples, "base")
+            base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
 
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
 
             self.train_dataset = TransferSourceDataset(
                 samples=base_train_samples,
-                class_to_label_dict=self.class_to_label_dict,
-                stage_labels=self.base_labels,
             )
 
             self.val_datasets = [
                 TransferSourceDataset(
                     samples=base_val_samples,
-                    stage_labels=self.base_labels,
-                    class_to_label_dict=self.class_to_label_dict,
                 )
             ]
-            # self.convert_to_local_labels(novel_samples, "novel")
+
+            novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
+
+            local_novel_labels = set([ind for ind, label in enumerate(sorted(self.novel_labels))])
+            self.test_datasets = [
+                MapEpisodicDataset(
+                    samples=novel_samples,
+                    n_episodes=self.num_test_episodes,
+                    num_supports_per_class=self.num_supports_per_class,
+                    stage_labels=local_novel_labels,
+                    class_to_label_dict=self.class_to_label_dict,
+                    num_queries_per_class=self.num_queries_per_class,
+                    num_classes_per_episode=self.num_classes_per_episode,
+                    separated_query_support=False,
+                )
+            ]
 
     def convert_to_local_labels(self, samples, base_or_novel):
-
+        """
+        Given a list of samples, reassign their labels to be ordered from 0 to num_labels -1
+        e.g. [2, 5, 10] --> [0, 1, 2]
+        return the mapping
+        :param samples:
+        :param base_or_novel:
+        :return:
+        """
         stage_labels = self.labels_split[base_or_novel]
 
-        self.global_to_local_labels = {label: ind for ind, label in enumerate(sorted(stage_labels))}
+        global_to_local_labels = {label: ind for ind, label in enumerate(sorted(stage_labels))}
 
         for sample in samples:
-            sample.y.apply_(lambda x: self.global_to_local_labels[x])
+            sample.y.apply_(lambda x: global_to_local_labels[x])
+
+        return global_to_local_labels
 
     def split_train_val(self, data_list):
         idxs = np.arange(len(data_list))
