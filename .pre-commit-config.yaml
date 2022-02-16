@@ -54,13 +54,13 @@ repos:
     rev: 'v1.12.1'
     hooks:
     - id: blacken-docs
-#
-#  - repo: https://github.com/PyCQA/flake8.git
-#    rev: '4.0.1'
-#    hooks:
-#      - id: flake8
-#        additional_dependencies:
-#          - flake8-docstrings==1.6.0
+
+  - repo: https://github.com/PyCQA/flake8.git
+    rev: '4.0.1'
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-docstrings==1.6.0
 
 #  - repo: https://github.com/pycqa/pydocstyle.git
 #    rev: '6.1.1'
