@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass
-from typing import Dict, List, Set
+from typing import Dict, List
 
 import torch
 from torch_geometric.data import Batch, Data

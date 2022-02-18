@@ -1,21 +1,17 @@
 import math
-import operator
-import pprint
 import random
 from abc import ABC
-from itertools import groupby
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import hydra
 import omegaconf
 import torch
-from torch.utils.data import DataLoader, Dataset, IterableDataset
-from torch_geometric.data import Batch, Data
+from torch.utils.data import DataLoader, Dataset
+from torch_geometric.data import Data
 
 from nn_core.common import PROJECT_ROOT
 
 from fs_grl.data.episode import Episode, EpisodeBatch
-from fs_grl.data.utils import AnnotatedSample
 
 
 def get_cls_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:

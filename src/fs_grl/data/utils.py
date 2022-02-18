@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 AnnotatedSample = Tuple[str, int]
 

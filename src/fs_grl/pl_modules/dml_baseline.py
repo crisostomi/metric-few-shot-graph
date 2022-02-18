@@ -5,7 +5,6 @@ import hydra
 import omegaconf
 import pytorch_lightning as pl
 import torch
-import torchmetrics
 from hydra.utils import instantiate
 from torch import nn
 from torch.optim import Optimizer

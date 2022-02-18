@@ -1,26 +1,12 @@
 import logging
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
-import hydra
 import numpy as np
-import omegaconf
 import plotly.graph_objects as go
 import pytorch_lightning as pl
-import torch
-import torchmetrics
 import wandb
-from hydra.utils import instantiate
-from plotly.graph_objs import Annotation
+from plotly.graph_objs.layout import Annotation
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from torch import nn
-from torch.optim import Optimizer
-from torchmetrics import Accuracy, ConfusionMatrix, FBeta
-
-from nn_core.common import PROJECT_ROOT
-from nn_core.model_logging import NNLogger
-
-from fs_grl.data.datamodule import MetaData
-from fs_grl.modules.mlp import MLP
+from torchmetrics import ConfusionMatrix
 
 pylogger = logging.getLogger(__name__)
 

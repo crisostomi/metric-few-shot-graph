@@ -1,9 +1,6 @@
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn import BatchNorm1d, Linear, ReLU, Sequential
-from torch_geometric.nn import GINConv, global_add_pool, global_mean_pool
-from torch_geometric.nn.conv.gat_conv import GATConv
-from torch_geometric.nn.models.basic_gnn import GIN
+from torch_geometric.nn import GINConv, global_add_pool
 
 from fs_grl.modules.mlp import MLP
 
