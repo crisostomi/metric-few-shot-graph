@@ -7,6 +7,7 @@ import torchmetrics
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
 from torchmetrics import FBetaScore
 
 from fs_grl.data.datamodule import MetaData
@@ -147,10 +148,18 @@ class TransferLearningTarget(TransferLearningBaseline):
             - None - Fit will run without any optimizer.
         """
         opt = hydra.utils.instantiate(self.hparams.optimizer, params=self.parameters(), _convert_="partial")
+
+        schedulers = []
         if "lr_scheduler" not in self.hparams:
-            return [opt]
-        scheduler = hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt)
-        return [opt], [scheduler]
+            lr_scheduler_config = {
+                "scheduler": LambdaLR(optimizer=opt, lr_lambda=lambda _: 1),
+                "name": f"meta-testing/lr-{opt.__class__.__name__}",
+            }
+            schedulers.append(lr_scheduler_config)
+        else:
+            schedulers.append(hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt))
+
+        return [opt], schedulers
 
     def freeze_embedder(self):
         """ """
