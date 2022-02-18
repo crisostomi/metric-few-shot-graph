@@ -13,7 +13,6 @@ import hydra
 import numpy as np
 import omegaconf
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Batch, Data
@@ -339,7 +338,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
             base_samples, novel_samples = self.split_base_novel_samples()
 
-            base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
+            _ = self.convert_to_local_labels(base_samples, "base")
 
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
 
@@ -353,7 +352,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 )
             ]
 
-            novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
+            _ = self.convert_to_local_labels(novel_samples, "novel")
 
             local_novel_labels = set([ind for ind, label in enumerate(sorted(self.novel_labels))])
             self.test_datasets = [
