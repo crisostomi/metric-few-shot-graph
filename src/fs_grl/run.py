@@ -7,15 +7,17 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning import Callback
 
+# Force the execution of __init__.py if this file is executed directly.
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 from nn_core.callbacks import NNTemplateCore
 from nn_core.common import PROJECT_ROOT
 from nn_core.common.utils import enforce_tags, seed_index_everything
 from nn_core.model_logging import NNLogger
-from nn_core.serialization import NNCheckpointIO
+from nn_core.serialization import NNCheckpointIO, load_model
 
-# Force the execution of __init__.py if this file is executed directly.
 import fs_grl  # noqa
-from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget
+from fs_grl.pl_modules.transfer_learning_source import TransferLearningSource
 
 pylogger = logging.getLogger(__name__)
 
@@ -35,6 +37,12 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
         callbacks.append(hydra.utils.instantiate(callback, _recursive_=False))
 
     return callbacks
+
+
+def get_checkpoint_callback(callbacks):
+    for callback in callbacks:
+        if isinstance(callback, ModelCheckpoint):
+            return callback
 
 
 def run(cfg: DictConfig) -> str:
@@ -94,6 +102,9 @@ def run(cfg: DictConfig) -> str:
 
     pylogger.info("Starting meta-testing.")
 
+    best_model_path = get_checkpoint_callback(callbacks).best_model_path
+    best_model = load_model(TransferLearningSource, checkpoint_path=best_model_path)
+
     callbacks: List[Callback] = build_callbacks(cfg.train["meta-testing-callbacks"], template_core)
 
     trainer = pl.Trainer(
@@ -105,7 +116,7 @@ def run(cfg: DictConfig) -> str:
     )
 
     target_model: pl.LightningModule = hydra.utils.instantiate(
-        cfg.nn.model.target, _recursive_=False, metadata=metadata, embedder=model.embedder
+        cfg.nn.model.target, _recursive_=False, metadata=metadata, embedder=best_model.embedder
     )
 
     trainer.fit(model=target_model, train_dataloader=datamodule.test_dataloader()[0])
