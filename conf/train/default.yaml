@@ -79,3 +79,15 @@ logging:
     entity: gladia
     log_model: ${..upload.run_files}
     mode: 'online'
+
+meta-testing-logging:
+  upload:
+    run_files: false
+    source: false
+
+  logger:
+    _target_: pytorch_lightning.loggers.WandbLogger
+    project: ${core.project_name}
+    entity: gladia
+    log_model: false
+    mode: 'online'

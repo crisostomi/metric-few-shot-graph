@@ -1,11 +1,16 @@
+import itertools
 import logging
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
+import hydra
+import pytorch_lightning
 import torch
 import torchmetrics
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
-from torchmetrics import FBetaScore
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
+from torchmetrics import Accuracy, FBetaScore
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
@@ -39,26 +44,24 @@ class TransferLearningTarget(TransferLearningBaseline):
         self.classes = metadata.classes_split["novel"]
         self.log_prefix = "meta-testing"
 
-        reductions = ["micro", "weighted", "macro"]  # TODO: add None
-        metrics = ["F1", "acc"]
+        reductions = ["micro", "weighted", "macro", "none"]
+        metrics = (("F1", FBetaScore), ("acc", Accuracy))
 
         self.train_metrics = nn.ModuleDict(
             {
-                f"{self.log_prefix}/train/{metric}/{reduction}": FBetaScore(
+                f"{self.log_prefix}/train/{metric_name}/{reduction}": metric(
                     num_classes=len(self.classes), average=reduction
                 )
-                for reduction in reductions
-                for metric in metrics
+                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
 
         self.test_metrics = nn.ModuleDict(
             {
-                f"{self.log_prefix}/test/{metric}/{reduction}": FBetaScore(
+                f"{self.log_prefix}/test/{metric_name}/{reduction}": metric(
                     num_classes=len(self.classes), average=reduction
                 )
-                for reduction in reductions
-                for metric in metrics
+                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
 
@@ -116,21 +119,57 @@ class TransferLearningTarget(TransferLearningBaseline):
         self.freeze_embedder()
 
     def on_train_batch_end(self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        # It's testing time!
         logits = self(batch.queries)["logits"]
 
-        class_probs = torch.softmax(logits, dim=-1)
+        class_probs = torch.log_softmax(logits, dim=-1)
         preds = torch.argmax(class_probs, dim=-1)
 
         for metric in self.test_metrics.values():
             metric(preds=preds, target=batch.queries.y)
 
-        self.log_metrics(split="test", on_step=True, on_epoch=True)
+        self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 
     def reset_fine_tuning(self):
         self.load_state_dict(torch.load(self.initial_state_path))
+        self.trainer: pytorch_lightning.Trainer
+        (
+            self.trainer.optimizers,
+            self.trainer.lr_schedulers,
+            self.trainer.optimizer_frequencies,
+        ) = self.trainer.init_optimizers(model=None)
 
     def freeze_embedder(self):
         """ """
         self.embedder.eval()
-        for param in self.embedder.parameters():
-            param.requires_grad = False
+        self.embedder.requires_grad_(False)
+
+    def configure_optimizers(
+        self,
+    ) -> Union[Optimizer, Tuple[Sequence[Optimizer], Sequence[Any]]]:
+        """Choose what optimizers and learning-rate schedulers to use in your optimization.
+        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+        Return:
+            Any of these 6 options.
+            - Single optimizer.
+            - List or Tuple - List of optimizers.
+            - Two lists - The first list has multiple optimizers, the second a list of LR schedulers (or lr_dict).
+            - Dictionary, with an 'optimizer' key, and (optionally) a 'lr_scheduler'
+              key whose value is a single LR scheduler or lr_dict.
+            - Tuple of dictionaries as described, with an optional 'frequency' key.
+            - None - Fit will run without any optimizer.
+        """
+        opt = hydra.utils.instantiate(self.hparams.optimizer, params=self.parameters(), _convert_="partial")
+
+        schedulers = []
+        if "lr_scheduler" not in self.hparams:
+            lr_scheduler_config = {
+                "scheduler": LambdaLR(optimizer=opt, lr_lambda=lambda _: 1),
+                "name": f"meta-testing/lr-{opt.__class__.__name__}",
+            }
+
+            schedulers.append(lr_scheduler_config)
+        else:
+            schedulers.append(hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt))
+
+        return [opt], schedulers

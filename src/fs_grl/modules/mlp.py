@@ -39,4 +39,4 @@ class MLP(nn.Module):
         elif non_linearity == "tanh":
             return nn.Tanh()
         else:
-            raise NotImplementedError(f"No such activaction {non_linearity}")
+            raise NotImplementedError(f"No such activation {non_linearity}")
