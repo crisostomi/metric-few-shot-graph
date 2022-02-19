@@ -4,7 +4,7 @@ from abc import ABC
 import numpy as np
 import plotly.graph_objects as go
 import wandb
-from plotly.graph_objs import Annotation
+from plotly.graph_objs.layout import Annotation
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torchmetrics import ConfusionMatrix
 
@@ -58,7 +58,7 @@ class TransferLearningBaseline(MyLightningModule, ABC):
 
         hover_text = [[str(y) for y in x] for x in z]
 
-        z = (z / z.sum(axis=1)).round(2)
+        z = np.nan_to_num((z / z.sum(axis=1)).round(2))
         z_text = [[str(y) for y in x] for x in z]
 
         fig = go.Figure(
