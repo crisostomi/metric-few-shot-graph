@@ -71,6 +71,14 @@ def run(cfg: DictConfig) -> str:
 
     callbacks: List[Callback] = build_callbacks(cfg.train["meta-testing-callbacks"], template_core)
 
+    # Create a new NNLogger but set it to resume the just closed one
+    resume_id: str = logger.experiment.id
+
+    if logger is not None:
+        logger.experiment.finish()
+
+    logger: NNLogger = NNLogger(logging_cfg=cfg.train["meta-testing-logging"], cfg=cfg, resume_id=resume_id)
+
     trainer = pl.Trainer(
         default_root_dir=cfg.core.storage_dir,
         logger=logger,
@@ -85,6 +93,7 @@ def run(cfg: DictConfig) -> str:
 
     trainer.fit(model=target_model, train_dataloader=datamodule.test_dataloader()[0])
 
+    # Mandatory for multi-run
     if logger is not None:
         logger.experiment.finish()
 
