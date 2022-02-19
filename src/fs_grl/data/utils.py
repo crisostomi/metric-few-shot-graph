@@ -1,11 +1,10 @@
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 AnnotatedSample = Tuple[str, int]
 
 
 def get_local_to_global_class_mapping(global_classes: List):
     """
-    :param global_keys:
     :return:
     """
     global_to_local = {}
@@ -15,6 +14,6 @@ def get_local_to_global_class_mapping(global_classes: List):
     return local_to_global
 
 
-def flatten(l: List) -> List:
+def flatten(list_of_lists: List) -> List:
     """ """
-    return [el for sublist in l for el in sublist]
+    return [el for sublist in list_of_lists for el in sublist]

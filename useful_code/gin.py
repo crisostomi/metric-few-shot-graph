@@ -25,7 +25,8 @@ class GINEmbedder(nn.Module):
         hidden_dim: dimensionality of hidden units at ALL layers
         output_dim: number of classes for prediction
         final_dropout: dropout ratio on the final linear layer
-        learn_eps: If True, learn epsilon to distinguish center nodes from neighboring nodes. If False, aggregate neighbors and center nodes altogether.
+        learn_eps: If True, learn epsilon to distinguish center nodes from neighboring nodes. If False, aggregate
+        neighbors and center nodes altogether.
         neighbor_pooling_type: how to aggregate neighbors (mean, average, or max)
         graph_pooling_type: how to aggregate entire nodes in a graph (mean, average)
         device: which device to use

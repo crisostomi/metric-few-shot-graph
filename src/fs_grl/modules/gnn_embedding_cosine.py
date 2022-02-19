@@ -17,6 +17,7 @@ class GNNEmbeddingCosine(GNNEmbeddingSimilarity):
             embedding_dim=embedding_dim,
             num_classes=num_classes,
             episode_hparams=episode_hparams,
+            **kwargs
         )
         self.loss_func = MarginLoss(margin=0.5, reduction="mean")
 

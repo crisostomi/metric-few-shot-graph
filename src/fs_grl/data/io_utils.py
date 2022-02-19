@@ -4,7 +4,7 @@ from typing import List
 import networkx as nx
 import numpy as np
 import torch
-from sklearn.model_selection import StratifiedKFold
+from torch.nn import functional as F
 from torch_geometric.data import Data
 
 
@@ -21,7 +21,7 @@ def load_data(dir_path, dataset_name, attr_to_consider):
 
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
-    :param degree_as_tag: whether to use node degree as tag
+    :param attr_to_consider:
     :return:
     """
     graph_list = load_graph_list(dir_path, dataset_name)
@@ -132,7 +132,7 @@ def get_degree_tensor_from_nx(G: nx.Graph):
     :param G: networkx graph
     :return: list of degrees
     """
-    degree_list = sorted(list(G.degree()), key=lambda x: x[0])
+    degree_list = sorted(list(G.degree), key=lambda x: x[0])
     return torch.tensor([pair[1] for pair in degree_list])
 
 
@@ -148,6 +148,7 @@ def set_node_features(data_list: List[Data], attr_to_consider):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     :param data_list:
+    :param attr_to_consider:
     :return:
     """
     assert attr_to_consider in {"tag", "degree", "both"}
@@ -180,7 +181,7 @@ def get_one_hot_attrs(attrs, data_list):
 
     for data in data_list:
         hots = torch.LongTensor(corrs[pointer : pointer + data.num_nodes])
-        data_one_hot_attrs = torch.nn.functional.one_hot(hots, num_different_attrs).float()
+        data_one_hot_attrs = F.one_hot(hots, num_different_attrs).float()
 
         all_one_hot_attrs.append(data_one_hot_attrs)
         pointer += data.num_nodes
@@ -206,18 +207,6 @@ def get_label_dict(graph_list):
     return label_dict
 
 
-def get_fold_indices(complex_list, seed, fold_idx):
-    assert 0 <= fold_idx < 10, "fold_idx must be from 0 to 9."
-    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
-
-    labels = [complex.y.item() for complex in complex_list]
-    idx_list = []
-    for idx in skf.split(np.zeros(len(labels)), labels):
-        idx_list.append(idx)
-    train_idx, test_idx = idx_list[fold_idx]
-
-    return train_idx.tolist(), test_idx.tolist()
-
-
+# TODO: implement
 def load_query_support_idxs(path):
     pass

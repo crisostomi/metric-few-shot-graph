@@ -2,9 +2,8 @@ import json
 import logging
 import math
 import operator
-import random
+from abc import ABC
 from collections import Counter
-from functools import partial
 from itertools import groupby
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -13,7 +12,6 @@ import hydra
 import numpy as np
 import omegaconf
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Batch, Data
@@ -21,7 +19,7 @@ from torch_geometric.data import Batch, Data
 from nn_core.common import PROJECT_ROOT
 
 from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset, TransferSourceDataset
-from fs_grl.data.episode import EpisodeBatch, EpisodeHParams
+from fs_grl.data.episode import EpisodeHParams
 from fs_grl.data.io_utils import load_data, load_query_support_idxs
 
 pylogger = logging.getLogger(__name__)
@@ -43,7 +41,10 @@ class MetaData:
         how to serialize and de-serialize the information contained in its attributes.
         This is needed for the checkpointing restore to work properly.
         Args:
-            class_vocab: association between class names and their indices
+            class_to_label_dict
+            feature_dim
+            episode_hparams
+            classes_split
         """
         self.classes_to_label_dict = class_to_label_dict
         self.feature_dim = feature_dim
@@ -87,7 +88,7 @@ class MetaData:
         )
 
 
-class GraphFewShotDataModule(pl.LightningDataModule):
+class GraphFewShotDataModule(pl.LightningDataModule, ABC):
     def __init__(
         self,
         dataset_name,
@@ -189,7 +190,7 @@ class GraphFewShotDataModule(pl.LightningDataModule):
         pylogger.info("No query support split provided, executing the split.")
 
         idxs = np.arange(len(data_list))
-        random.shuffle(idxs)
+        np.random.shuffle(idxs)
 
         support_upperbound = math.ceil(self.support_query_ratio * len(data_list))
         support_idxs = idxs[:support_upperbound]
@@ -276,7 +277,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 separated_query_support=self.separated_query_support,
             )
 
-            self.val_datasets = [
+            self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
                     n_episodes=self.num_train_episodes,
@@ -289,30 +290,33 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 )
             ]
 
-    def train_dataloader(self) -> DataLoader:
-        collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=self.episode_hparams)
-
-        return DataLoader(
-            self.train_dataset,
+    def train_dataloader(self) -> EpisodicDataLoader:
+        return EpisodicDataLoader(
+            dataset=self.train_dataset,
+            episode_hparams=self.episode_hparams,
             batch_size=self.batch_size.train,
-            collate_fn=collate_fn,
             num_workers=self.num_workers.train,
             pin_memory=self.pin_memory,
         )
 
-    def val_dataloader(self) -> Sequence[EpisodicDataLoader]:
-        collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=self.episode_hparams)
+    def test_dataloader(self) -> Sequence[EpisodicDataLoader]:
         return [
-            DataLoader(
-                dataset,
+            EpisodicDataLoader(
+                dataset=dataset,
+                episode_hparams=self.episode_hparams,
                 shuffle=False,
                 batch_size=self.batch_size.val,
                 num_workers=self.num_workers.val,
                 pin_memory=self.pin_memory,
-                collate_fn=collate_fn,
             )
-            for dataset in self.val_datasets
+            for dataset in self.test_datasets
         ]
+
+    def val_dataloader(self):
+        pass
+
+    def predict_dataloader(self):
+        pass
 
 
 class GraphTransferDataModule(GraphFewShotDataModule):
@@ -340,6 +344,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             base_samples, novel_samples = self.split_base_novel_samples()
 
             base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
+            pylogger.info(f"Base global to local labels: {base_global_to_local_labels}")
 
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
 
@@ -354,8 +359,10 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             ]
 
             novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
+            pylogger.info(f"Novel global to local labels: {novel_global_to_local_labels}")
 
-            local_novel_labels = set([ind for ind, label in enumerate(sorted(self.novel_labels))])
+            local_novel_labels = [ind for ind, label in enumerate(sorted(self.novel_labels))]
+
             self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
@@ -389,7 +396,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
     def split_train_val(self, data_list):
         idxs = np.arange(len(data_list))
-        random.shuffle(idxs)
+        np.random.shuffle(idxs)
 
         train_upperbound = math.ceil(self.train_val_split_ratio * len(data_list))
         train_idxs = idxs[:train_upperbound]
@@ -414,7 +421,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         )
 
     # meta-training validation
-    def val_dataloader(self) -> Sequence[EpisodicDataLoader]:
+    def val_dataloader(self) -> Sequence[DataLoader]:
         return [
             DataLoader(
                 dataset,
@@ -429,18 +436,20 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
     # meta-testing
     def test_dataloader(self) -> Sequence[EpisodicDataLoader]:
-        collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=self.episode_hparams)
         return [
-            DataLoader(
-                dataset,
+            EpisodicDataLoader(
+                dataset=dataset,
+                episode_hparams=self.episode_hparams,
                 shuffle=False,
                 batch_size=1,
                 num_workers=self.num_workers.test,
                 pin_memory=self.pin_memory,
-                collate_fn=collate_fn,
             )
             for dataset in self.test_datasets
         ]
+
+    def predict_dataloader(self):
+        pass
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")

@@ -1,31 +1,19 @@
 import logging
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
+from abc import ABC
 
-import hydra
 import numpy as np
-import omegaconf
 import plotly.graph_objects as go
-import pytorch_lightning as pl
-import torch
-import torchmetrics
 import wandb
-from hydra.utils import instantiate
 from plotly.graph_objs import Annotation
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from torch import nn
-from torch.optim import Optimizer
-from torchmetrics import Accuracy, ConfusionMatrix, FBeta
+from torchmetrics import ConfusionMatrix
 
-from nn_core.common import PROJECT_ROOT
-from nn_core.model_logging import NNLogger
-
-from fs_grl.data.datamodule import MetaData
-from fs_grl.modules.mlp import MLP
+from fs_grl.pl_modules.pl_module import MyLightningModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningBaseline(pl.LightningModule):
+class TransferLearningBaseline(MyLightningModule, ABC):
     def __init__(self):
         super().__init__()
 

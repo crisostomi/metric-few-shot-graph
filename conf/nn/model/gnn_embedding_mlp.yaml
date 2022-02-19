@@ -19,3 +19,5 @@ model:
     num_mlp_layers: 2
     embedding_dim: 64
     hidden_dim: 64
+    num_convs: 2
+    dropout_rate: 0

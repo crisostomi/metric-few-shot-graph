@@ -16,7 +16,7 @@ class MLP(nn.Module):
 
         self.num_layers = num_layers
 
-        hidden_sizes = [hidden_dim for i in range(num_layers - 1)] + [output_dim]
+        hidden_sizes = [hidden_dim for _ in range(num_layers - 1)] + [output_dim]
 
         self.linears = torch.nn.ModuleList()
         self.linears.append(nn.Linear(input_dim, hidden_sizes[0]))

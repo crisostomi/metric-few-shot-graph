@@ -1,5 +1,4 @@
 import torch
-from torch import nn
 from torch.nn import functional as F
 
 from fs_grl.data.episode import EpisodeHParams
@@ -44,6 +43,6 @@ class GNNEmbeddingMLP(GNNEmbeddingSimilarity):
 
         similarities = self.similarity_network(merged_query_prototypes)
 
-        similarities = nn.functional.tanh(similarities)
+        similarities = F.tanh(similarities)
 
         return similarities

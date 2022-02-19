@@ -1,8 +1,8 @@
 defaults:
-  - model/transfer_learning
+  - model/gnn_embedding_cosine
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule
+  _target_: fs_grl.data.datamodule.GraphMetaDataModule
   dataset_name: TRIANGLES
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   data_path: ${nn.data.data_dir}/${nn.data.dataset_name}.txt

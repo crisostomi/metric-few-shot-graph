@@ -11,13 +11,7 @@ from fs_grl.data.episode import EpisodeBatch, EpisodeHParams
 
 class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
     def __init__(
-        self,
-        cfg,
-        feature_dim,
-        hidden_dim,
-        embedding_dim,
-        num_classes,
-        episode_hparams: EpisodeHParams,
+        self, cfg, feature_dim, hidden_dim, embedding_dim, num_classes, episode_hparams: EpisodeHParams, **kwargs
     ):
         super().__init__()
         self.cfg = cfg
@@ -146,7 +140,7 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
 
     def forward(self, batch: EpisodeBatch):
         """
-        :param supports:
+        :param batch:
         :return:
         """
 

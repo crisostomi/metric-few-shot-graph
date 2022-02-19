@@ -8,7 +8,7 @@ from pytorch_lightning import LightningModule
 from tests.conftest import load_checkpoint
 
 from fs_grl.pl_modules.dml_baseline import DMLBaseline
-from fs_grl.run import run
+from fs_grl.run_dml import run
 
 
 def test_load_checkpoint(run_trainings_not_dry: str, cfg_all_not_dry: DictConfig) -> None:

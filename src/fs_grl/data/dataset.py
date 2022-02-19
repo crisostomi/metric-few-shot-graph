@@ -1,21 +1,19 @@
 import math
-import operator
-import pprint
 import random
 from abc import ABC
-from itertools import groupby
-from typing import Dict, List, Tuple, Union
+from functools import partial
+from typing import Dict, List, Union
 
 import hydra
 import omegaconf
 import torch
-from torch.utils.data import DataLoader, Dataset, IterableDataset
-from torch_geometric.data import Batch, Data
+from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.dataset import T_co
+from torch_geometric.data import Data
 
 from nn_core.common import PROJECT_ROOT
 
-from fs_grl.data.episode import Episode, EpisodeBatch
-from fs_grl.data.utils import AnnotatedSample
+from fs_grl.data.episode import Episode, EpisodeBatch, EpisodeHParams
 
 
 def get_cls_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
@@ -44,7 +42,7 @@ class EpisodicDataset(ABC):
         self,
         n_episodes: int,
         samples: Union[List, Dict],
-        stage_labels: set,
+        stage_labels: List,
         class_to_label_dict: Dict,
         num_classes_per_episode,
         num_supports_per_class,
@@ -55,7 +53,6 @@ class EpisodicDataset(ABC):
 
         :param n_episodes:
         :param samples:
-        :param queries:
         """
         super().__init__()
         self.n_episodes = n_episodes
@@ -98,11 +95,11 @@ class EpisodicDataset(ABC):
         random.shuffle(supports)
         random.shuffle(queries)
 
-        episode_hparams = {
-            "num_supports_per_class": self.num_supports_per_class,
-            "num_queries_per_class": self.num_queries_per_class,
-            "num_classes_per_episode": self.num_classes_per_episode,
-        }
+        episode_hparams = EpisodeHParams(
+            num_supports_per_class=self.num_supports_per_class,
+            num_queries_per_class=self.num_queries_per_class,
+            num_classes_per_episode=self.num_classes_per_episode,
+        )
 
         return Episode(supports, queries, labels, episode_hparams=episode_hparams)
 
@@ -128,7 +125,7 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
         self,
         n_episodes: int,
         samples: List,
-        stage_labels: set,
+        stage_labels: List,
         class_to_label_dict: Dict,
         num_classes_per_episode,
         num_supports_per_class,
@@ -139,7 +136,6 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
 
         :param n_episodes:
         :param samples:
-        :param queries:
         """
         super().__init__(
             n_episodes=n_episodes,
@@ -167,6 +163,9 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
 
         return iter(self.sample_episode() for _ in range(per_worker))
 
+    def __getitem__(self, index) -> T_co:
+        raise NotImplementedError
+
 
 class MapEpisodicDataset(Dataset, EpisodicDataset):
     def __init__(
@@ -174,7 +173,7 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
         n_episodes: int,
         samples: List,
         class_to_label_dict: Dict,
-        stage_labels: set,
+        stage_labels: List,
         num_classes_per_episode,
         num_supports_per_class,
         num_queries_per_class,
@@ -183,7 +182,6 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
         """
         :param n_episodes:
         :param samples:
-        :param queries:
         """
         super().__init__(
             n_episodes=n_episodes,
@@ -206,8 +204,8 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
 
 
 class EpisodicDataLoader(DataLoader):
-    def __init__(self, dataset: Dataset, **kwargs):
-        collate_fn = EpisodeBatch.from_episode_list
+    def __init__(self, dataset: Dataset, episode_hparams, **kwargs):
+        collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=episode_hparams)
         super().__init__(dataset, collate_fn=collate_fn, **kwargs)
 
 
