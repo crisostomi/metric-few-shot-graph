@@ -5,7 +5,7 @@ import torch
 import torchmetrics
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
-from torchmetrics import FBeta
+from torchmetrics import FBetaScore
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
@@ -44,7 +44,9 @@ class TransferLearningTarget(TransferLearningBaseline):
 
         self.train_metrics = nn.ModuleDict(
             {
-                f"{self.log_prefix}/train/{metric}/{reduction}": FBeta(num_classes=len(self.classes), average=reduction)
+                f"{self.log_prefix}/train/{metric}/{reduction}": FBetaScore(
+                    num_classes=len(self.classes), average=reduction
+                )
                 for reduction in reductions
                 for metric in metrics
             }
@@ -52,7 +54,9 @@ class TransferLearningTarget(TransferLearningBaseline):
 
         self.test_metrics = nn.ModuleDict(
             {
-                f"{self.log_prefix}/test/{metric}/{reduction}": FBeta(num_classes=len(self.classes), average=reduction)
+                f"{self.log_prefix}/test/{metric}/{reduction}": FBetaScore(
+                    num_classes=len(self.classes), average=reduction
+                )
                 for reduction in reductions
                 for metric in metrics
             }

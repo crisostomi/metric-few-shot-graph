@@ -105,7 +105,7 @@ class GINEmbedder(nn.Module):
         # create sum or average pooling sparse matrix over entire nodes in each graph (num graphs x num nodes)
 
         start_idx = [0]
-        ref_tensor = batch_graph[0].x
+        # ref_tensor = batch_graph[0].x
         # compute the padded neighbor list
         for i, graph in enumerate(batch_graph):
             start_idx.append(start_idx[i] + len(graph.x))
