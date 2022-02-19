@@ -7,14 +7,12 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 3
-#  max_steps: 10000
+  max_epochs: 100
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
   val_check_interval: 1.0
   log_every_n_steps: 1
-
   deterministic: ${train.deterministic}
 
 meta-testing-trainer:
@@ -35,7 +33,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 5
+    patience: 50
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -77,12 +75,7 @@ logging:
 
   logger:
     _target_: pytorch_lightning.loggers.WandbLogger
-
     project: ${core.project_name}
     entity: gladia
     log_model: ${..upload.run_files}
     mode: 'online'
-
-#  wandb_watch:
-#    log: 'all'
-#    log_freq: 100

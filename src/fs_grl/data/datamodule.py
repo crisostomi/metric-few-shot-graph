@@ -418,6 +418,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             collate_fn=Batch.from_data_list,
             num_workers=self.num_workers.train,
             pin_memory=self.pin_memory,
+            shuffle=True,
         )
 
     # meta-training validation
