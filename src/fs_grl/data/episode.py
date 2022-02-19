@@ -18,6 +18,13 @@ class EpisodeHParams:
     num_supports_per_class: int
     num_queries_per_class: int
 
+    def as_dict(self):
+        return {
+            "num_classes_per_episode": self.num_classes_per_episode,
+            "num_supports_per_class": self.num_supports_per_class,
+            "num_queries_per_class": self.num_queries_per_class,
+        }
+
 
 class Episode:
     def __init__(self, supports: List[Data], queries: List[Data], labels, episode_hparams: EpisodeHParams):

@@ -12,6 +12,7 @@ import hydra
 import numpy as np
 import omegaconf
 import pytorch_lightning as pl
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Batch, Data
@@ -63,7 +64,7 @@ class MetaData:
         data = {
             "classes_to_label_dict": self.classes_to_label_dict,
             "feature_dim": self.feature_dim,
-            "episode_hparams": self.episode_hparams,
+            "episode_hparams": self.episode_hparams.as_dict(),
             "classes_split": self.classes_split,
         }
 
@@ -138,7 +139,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.classes_split_path = classes_split_path
         self.query_support_split_path = query_support_split_path
 
-        self.episode_hparams = episode_hparams
+        self.episode_hparams = instantiate(episode_hparams)
         self.num_train_episodes = num_train_episodes
         self.num_test_episodes = num_test_episodes
 
@@ -182,7 +183,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             class_to_label_dict=self.class_to_label_dict,
             feature_dim=self.feature_dim,
             episode_hparams=self.episode_hparams,
-            classes_split={"base": self.base_classes, "novel": self.novel_classes},
+            classes_split=self.classes_split,
         )
 
         return metadata
@@ -394,7 +395,8 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
         if stage is None or stage == "fit":
 
-            base_samples, novel_samples = self.split_base_novel_samples()
+            split_samples = self.split_base_novel_samples()
+            base_samples, novel_samples = split_samples["base"], split_samples["novel"]
 
             base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
             pylogger.info(f"Base global to local labels: {base_global_to_local_labels}")
