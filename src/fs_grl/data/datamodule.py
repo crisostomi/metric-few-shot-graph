@@ -6,7 +6,7 @@ from abc import ABC
 from collections import Counter
 from itertools import groupby
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Union
 
 import hydra
 import numpy as np
@@ -21,6 +21,7 @@ from nn_core.common import PROJECT_ROOT
 from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset, TransferSourceDataset
 from fs_grl.data.episode import EpisodeHParams
 from fs_grl.data.io_utils import load_data, load_query_support_idxs
+from fs_grl.data.utils import flatten
 
 pylogger = logging.getLogger(__name__)
 
@@ -92,66 +93,79 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
     def __init__(
         self,
         dataset_name,
+        data_features_to_consider,
         data_dir,
-        datasets: DictConfig,
+        classes_split_path: Optional[str],
+        query_support_split_path,
+        separated_query_support: bool,
+        support_ratio,
+        episode_hparams: EpisodeHParams,
+        num_train_episodes,
+        num_test_episodes,
         num_workers: DictConfig,
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
-        num_supports_per_class,
-        classes_split_path: Optional[str],
-        query_support_path,
-        query_support_ratio,
-        num_train_episodes,
-        num_test_episodes,
-        num_queries_per_class: int = 2,
-        num_classes_per_episode: int = 2,
-        separated_query_support: bool = False,
         **kwargs,
     ):
+        """
+        Abstract datamodule for few-shot graph classification.
+
+        :param dataset_name:
+        :param data_features_to_consider: whether to consider node tags, degrees or both
+        :param data_dir: path to the folder containing the dataset
+        :param classes_split_path: path containing the split between base and novel classes
+        :param query_support_split_path: path containing the split between queries and supports
+
+        :param separated_query_support: whether to sample queries and supports from disjoint sets
+        :param support_ratio: percentage of samples used as support, meaningful only
+                            when support and queries are split
+
+        :param episode_hparams: number N of classes per episode, number K of supports per class and
+                                number Q of queries per class
+        :param num_train_episodes: how many episodes per one training epoch
+        :param num_test_episodes: how many episodes for testing
+
+        :param num_workers:
+        :param batch_size:
+        :param gpus:
+
+        :param kwargs:
+        """
         super().__init__()
+
         self.dataset_name = dataset_name
         self.data_dir = data_dir
-        self.datasets = datasets
-        self.num_workers = num_workers
-        self.batch_size = batch_size
+        self.classes_split_path = classes_split_path
+        self.query_support_split_path = query_support_split_path
+
+        self.episode_hparams = episode_hparams
         self.num_train_episodes = num_train_episodes
         self.num_test_episodes = num_test_episodes
-        self.num_queries_per_class = num_queries_per_class
-        self.pin_memory: bool = gpus is not None and str(gpus) != "0"
-        self.num_supports_per_class = num_supports_per_class
 
-        self.episode_hparams = EpisodeHParams(num_classes_per_episode, num_supports_per_class, num_queries_per_class)
-
-        self.query_support_path = query_support_path
-        self.support_query_ratio = query_support_ratio
-        self.num_classes_per_episode = num_classes_per_episode
+        self.support_ratio = support_ratio
         self.separated_query_support = separated_query_support
+
+        self.num_workers = num_workers
+        self.batch_size = batch_size
+        self.pin_memory: bool = gpus is not None and str(gpus) != "0"
 
         self.train_dataset: Optional[Dataset] = None
         self.val_datasets: Optional[Sequence[Dataset]] = None
         self.test_datasets: Optional[Sequence[Dataset]] = None
 
-        self.classes_split_path = classes_split_path
         self.classes_split = self.get_classes_split()
         self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
 
-        self.data_list, self.class_to_label_dict = load_data(self.data_dir, self.dataset_name, attr_to_consider="both")
+        self.data_list, self.class_to_label_dict = load_data(
+            self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
+        )
 
-        self.base_labels, self.novel_labels = self.get_labels_from_classes()
-        self.labels_split = {"base": self.base_labels, "novel": self.novel_labels}
-
-        self.feature_dim = self.data_list[0].x.shape[-1]
+        self.labels_split = self.get_labels_split()
+        self.base_labels, self.novel_labels = self.labels_split["base"], self.labels_split["novel"]
 
         self.data_list_by_label = {
             key.item(): list(value) for key, value in groupby(self.data_list, key=operator.attrgetter("y"))
         }
-
-        self.num_classes = len(self.class_to_label_dict)
-
-    def get_labels_from_classes(self):
-        base_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.base_classes])
-        novel_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.novel_classes])
-        return base_labels, novel_labels
 
     @property
     def metadata(self) -> MetaData:
@@ -173,119 +187,140 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
 
         return metadata
 
-    def get_classes_split(self):
+    @property
+    def feature_dim(self) -> int:
+        return self.data_list[0].x.shape[-1]
+
+    def get_labels_split(self) -> Dict:
+        """
+        Return base and novel labels from the corresponding base and novel classes
+        """
+
+        base_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.base_classes])
+        novel_labels = sorted([self.class_to_label_dict[stage_cls] for stage_cls in self.novel_classes])
+
+        labels_split = {"base": base_labels, "novel": novel_labels}
+
+        return labels_split
+
+    def get_classes_split(self) -> Dict:
+        """
+        Returns the classes split from file if present, else creates and saves a new one.
+        """
         if self.classes_split_path is not None:
             classes_split = json.loads(Path(self.classes_split_path).read_text(encoding="utf-8"))
             return classes_split
 
         pylogger.info("No classes split provided, creating new split.")
-        # TODO: implement
-        pass
+        raise NotImplementedError
 
-    def split_query_support(self, data_list: List[Data]):
-        if self.query_support_path is not None:
-            query_idxs, support_idxs = load_query_support_idxs(self.query_support_path)
-            return query_idxs, support_idxs
+    def split_query_support(self, data_list: List[Data]) -> Dict[str, Sequence]:
+        """
+        Returns the indices splitting query and support samples.
+        These are obtained from a split file if it exists, otherwise they are created on the fly.
+        :param data_list:
+        :return:
+        """
+        if self.query_support_split_path is not None:
+            query_idxs, support_idxs = load_query_support_idxs(self.query_support_split_path)
+            return {"query_idxs": query_idxs, "support_idxs": support_idxs}
 
         pylogger.info("No query support split provided, executing the split.")
 
         idxs = np.arange(len(data_list))
         np.random.shuffle(idxs)
 
-        support_upperbound = math.ceil(self.support_query_ratio * len(data_list))
+        support_upperbound = math.ceil(self.support_ratio * len(data_list))
         support_idxs = idxs[:support_upperbound]
         query_idxs = idxs[support_upperbound:]
 
-        return query_idxs, support_idxs
+        supports = [data_list[idx] for idx in support_idxs]
+        queries = [data_list[idx] for idx in query_idxs]
 
-    def split_base_novel_samples(self) -> Tuple[List[Data], List[Data]]:
+        return {"supports": supports, "queries": queries}
+
+    def split_base_novel_samples(self) -> Dict[str, List[Data]]:
+        """
+        Split the samples in base and novel ones according to the labels
+        """
         base_samples: List[Data] = [
-            sample for key, samples in self.data_list_by_label.items() if key in self.base_labels for sample in samples
+            samples for key, samples in self.data_list_by_label.items() if key in self.base_labels
         ]
+        base_samples = flatten(base_samples)
 
-        novel_samples = [
-            sample for key, samples in self.data_list_by_label.items() if key in self.novel_labels for sample in samples
+        novel_samples: List[Data] = [
+            samples for key, samples in self.data_list_by_label.items() if key in self.novel_labels
         ]
-        return base_samples, novel_samples
+        novel_samples = flatten(novel_samples)
+
+        return {"base": base_samples, "novel": novel_samples}
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(" f"{self.datasets=}, " f"{self.num_workers=}, " f"{self.batch_size=})"
+        return f"{self.__class__.__name__}(" f"{self.num_workers=}, " f"{self.batch_size=})"
 
 
 class GraphMetaDataModule(GraphFewShotDataModule):
     def __init__(
         self,
         dataset_name,
+        data_features_to_consider,
         data_dir,
-        datasets: DictConfig,
         num_workers: DictConfig,
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
-        num_supports_per_class,
         classes_split_path: Optional[str],
-        query_support_path,
-        query_support_ratio,
+        query_support_split_path,
+        episode_hparams: EpisodeHParams,
+        support_ratio,
         num_train_episodes,
         num_test_episodes,
-        num_queries_per_class,
-        num_classes_per_episode,
         separated_query_support,
         **kwargs,
     ):
 
         super().__init__(
             dataset_name=dataset_name,
+            data_features_to_consider=data_features_to_consider,
             data_dir=data_dir,
-            datasets=datasets,
+            classes_split_path=classes_split_path,
+            query_support_split_path=query_support_split_path,
+            episode_hparams=episode_hparams,
+            num_train_episodes=num_train_episodes,
+            num_test_episodes=num_test_episodes,
+            separated_query_support=separated_query_support,
+            support_ratio=support_ratio,
             num_workers=num_workers,
             batch_size=batch_size,
             gpus=gpus,
-            num_supports_per_class=num_supports_per_class,
-            classes_split_path=classes_split_path,
-            query_support_path=query_support_path,
-            query_support_ratio=query_support_ratio,
-            num_train_episodes=num_train_episodes,
-            num_test_episodes=num_test_episodes,
-            num_queries_per_class=num_queries_per_class,
-            num_classes_per_episode=num_classes_per_episode,
-            separated_query_support=separated_query_support,
-            **kwargs,
         )
 
     def setup(self, stage: Optional[str] = None):
 
         if stage is None or stage == "fit":
 
-            base_samples, novel_samples = self.split_base_novel_samples()
+            split_samples = self.split_base_novel_samples()
+            base_samples = split_samples["base"]
 
             if self.separated_query_support:
-                base_query_idxs, base_support_idxs = self.split_query_support(base_samples)
-
-                base_supports = [base_samples[idx] for idx in base_support_idxs]
-                base_queries = [base_samples[idx] for idx in base_query_idxs]
-
-                base_samples = {"supports": base_supports, "queries": base_queries}
+                base_samples = self.split_query_support(base_samples)
 
             self.train_dataset = IterableEpisodicDataset(
                 samples=base_samples,
                 n_episodes=self.num_train_episodes,
                 class_to_label_dict=self.class_to_label_dict,
                 stage_labels=self.base_labels,
-                num_supports_per_class=self.num_supports_per_class,
-                num_queries_per_class=self.num_queries_per_class,
-                num_classes_per_episode=self.num_classes_per_episode,
+                episode_hparams=self.episode_hparams,
                 separated_query_support=self.separated_query_support,
             )
 
+            novel_samples = split_samples["novel"]
             self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
                     n_episodes=self.num_train_episodes,
-                    num_supports_per_class=self.num_supports_per_class,
                     stage_labels=self.novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
-                    num_queries_per_class=self.num_queries_per_class,
-                    num_classes_per_episode=self.num_classes_per_episode,
+                    episode_hparams=self.episode_hparams,
                     separated_query_support=False,
                 )
             ]
@@ -323,17 +358,35 @@ class GraphTransferDataModule(GraphFewShotDataModule):
     def __init__(
         self,
         dataset_name,
+        data_features_to_consider,
         data_dir,
-        datasets: DictConfig,
+        classes_split_path: Optional[str],
+        query_support_split_path,
+        separated_query_support: bool,
+        support_ratio,
+        episode_hparams: EpisodeHParams,
+        num_train_episodes,
+        num_test_episodes,
+        train_val_split_ratio,
         num_workers: DictConfig,
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
-        num_supports_per_class,
-        train_val_split_ratio=0.9,
         **kwargs,
     ):
         super().__init__(
-            dataset_name, data_dir, datasets, num_workers, batch_size, gpus, num_supports_per_class, **kwargs
+            dataset_name=dataset_name,
+            data_features_to_consider=data_features_to_consider,
+            data_dir=data_dir,
+            classes_split_path=classes_split_path,
+            query_support_split_path=query_support_split_path,
+            separated_query_support=separated_query_support,
+            support_ratio=support_ratio,
+            num_train_episodes=num_train_episodes,
+            num_test_episodes=num_test_episodes,
+            episode_hparams=episode_hparams,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            gpus=gpus,
         )
         self.train_val_split_ratio = train_val_split_ratio
 
@@ -367,11 +420,9 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 MapEpisodicDataset(
                     samples=novel_samples,
                     n_episodes=self.num_test_episodes,
-                    num_supports_per_class=self.num_supports_per_class,
                     stage_labels=local_novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
-                    num_queries_per_class=self.num_queries_per_class,
-                    num_classes_per_episode=self.num_classes_per_episode,
+                    episode_hparams=self.episode_hparams,
                     separated_query_support=False,
                 )
             ]

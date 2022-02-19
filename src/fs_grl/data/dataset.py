@@ -44,9 +44,7 @@ class EpisodicDataset(ABC):
         samples: Union[List, Dict],
         stage_labels: List,
         class_to_label_dict: Dict,
-        num_classes_per_episode,
-        num_supports_per_class,
-        num_queries_per_class,
+        episode_hparams: EpisodeHParams,
         separated_query_support,
     ):
         """
@@ -57,10 +55,7 @@ class EpisodicDataset(ABC):
         super().__init__()
         self.n_episodes = n_episodes
         self.separated_query_support = separated_query_support
-
-        self.num_classes_per_episode = num_classes_per_episode
-        self.num_supports_per_class = num_supports_per_class
-        self.num_queries_per_class = num_queries_per_class
+        self.episode_hparams = episode_hparams
 
         if self.separated_query_support:
             self.supports, self.queries = samples["supports"], samples["queries"]
@@ -77,11 +72,11 @@ class EpisodicDataset(ABC):
 
     def sample_episode(self):
         f"""
-        Creates an episode by first sampling {self.num_classes_per_episode} classes
+        Creates an episode by first sampling {self.episode_hparams.num_classes_per_episode} classes
         and then sampling K supports and Q queries for each class
         :return:
         """
-        labels = sorted(random.sample(self.stage_labels, self.num_classes_per_episode))
+        labels = sorted(random.sample(self.stage_labels, self.episode_hparams.num_classes_per_episode))
 
         supports = []
         queries = []
@@ -95,27 +90,24 @@ class EpisodicDataset(ABC):
         random.shuffle(supports)
         random.shuffle(queries)
 
-        episode_hparams = EpisodeHParams(
-            num_supports_per_class=self.num_supports_per_class,
-            num_queries_per_class=self.num_queries_per_class,
-            num_classes_per_episode=self.num_classes_per_episode,
-        )
-
-        return Episode(supports, queries, labels, episode_hparams=episode_hparams)
+        return Episode(supports, queries, labels, episode_hparams=self.episode_hparams)
 
     def sample_label_queries_supports(self, label):
         all_cls_supports: List[Data] = self.cls_to_supports[label]
 
         if self.separated_query_support:
-            cls_supports = random.sample(all_cls_supports, self.num_supports_per_class)
+            cls_supports = random.sample(all_cls_supports, self.episode_hparams.num_supports_per_class)
 
             all_cls_queries: List[Data] = self.cls_to_queries[label]
-            cls_queries = random.sample(all_cls_queries, self.num_queries_per_class)
+            cls_queries = random.sample(all_cls_queries, self.episode_hparams.num_queries_per_class)
 
         else:
-            cls_samples = random.sample(all_cls_supports, self.num_supports_per_class + self.num_queries_per_class)
-            cls_supports = cls_samples[: self.num_supports_per_class]
-            cls_queries = cls_samples[self.num_supports_per_class :]
+            cls_samples = random.sample(
+                all_cls_supports,
+                self.episode_hparams.num_supports_per_class + self.episode_hparams.num_queries_per_class,
+            )
+            cls_supports = cls_samples[: self.episode_hparams.num_supports_per_class]
+            cls_queries = cls_samples[self.episode_hparams.num_supports_per_class :]
 
         return cls_supports, cls_queries
 
@@ -127,9 +119,7 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
         samples: List,
         stage_labels: List,
         class_to_label_dict: Dict,
-        num_classes_per_episode,
-        num_supports_per_class,
-        num_queries_per_class,
+        episode_hparams: EpisodeHParams,
         separated_query_support,
     ):
         """
@@ -142,9 +132,7 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
             samples=samples,
             stage_labels=stage_labels,
             class_to_label_dict=class_to_label_dict,
-            num_classes_per_episode=num_classes_per_episode,
-            num_queries_per_class=num_queries_per_class,
-            num_supports_per_class=num_supports_per_class,
+            episode_hparams=episode_hparams,
             separated_query_support=separated_query_support,
         )
 
@@ -174,9 +162,7 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
         samples: List,
         class_to_label_dict: Dict,
         stage_labels: List,
-        num_classes_per_episode,
-        num_supports_per_class,
-        num_queries_per_class,
+        episode_hparams: EpisodeHParams,
         separated_query_support,
     ):
         """
@@ -188,9 +174,7 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
             samples=samples,
             stage_labels=stage_labels,
             class_to_label_dict=class_to_label_dict,
-            num_classes_per_episode=num_classes_per_episode,
-            num_queries_per_class=num_queries_per_class,
-            num_supports_per_class=num_supports_per_class,
+            episode_hparams=episode_hparams,
             separated_query_support=separated_query_support,
         )
 

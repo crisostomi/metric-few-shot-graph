@@ -8,6 +8,12 @@ from torch_geometric.data import Batch, Data
 
 @dataclass
 class EpisodeHParams:
+    """
+    num_supports_per_class: K, how many labeled samples there are for each class when doing few-shot
+    num_queries_per_class: Q, how many samples must be predicted for each class when doing few-shot
+    num_classes_per_episode: N, how many classes are considered in one few-shot episode
+    """
+
     num_classes_per_episode: int
     num_supports_per_class: int
     num_queries_per_class: int

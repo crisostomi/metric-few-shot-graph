@@ -1,9 +1,10 @@
 import os
-from typing import List
+from typing import Dict, Sequence
 
 import networkx as nx
 import numpy as np
 import torch
+from torch import Tensor
 from torch.nn import functional as F
 from torch_geometric.data import Data
 
@@ -21,7 +22,7 @@ def load_data(dir_path, dataset_name, attr_to_consider):
 
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
-    :param attr_to_consider:
+    :param attr_to_consider: whether to consider node tags, node degree or both
     :return:
     """
     graph_list = load_graph_list(dir_path, dataset_name)
@@ -40,6 +41,7 @@ def load_graph_list(dir_path, dataset_name):
 
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
+
     :return: graph_list: list of networkx graphs
     """
     dataset_path = f"{os.path.join(dir_path, dataset_name)}.txt"
@@ -56,11 +58,21 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict):
+def to_data_list(graph_list, class_to_label_dict) -> Sequence[Data]:
+    """
+    Converts a list of Networkx graphs to a list of PyG Data objects
+
+    :param graph_list: list of Networkx graphs
+    :param class_to_label_dict: mapping original class to integer label
+
+    :return:
+    """
     data_list = []
+
     for G in graph_list:
         edge_index = get_edge_index_from_nx(G)
-        label = torch.tensor(class_to_label_dict[G.graph["label"]]).unsqueeze(0).long()
+        label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
+
         data = Data(
             edge_index=edge_index,
             num_nodes=G.number_of_nodes(),
@@ -68,6 +80,7 @@ def to_data_list(graph_list, class_to_label_dict):
             degrees=get_degree_tensor_from_nx(G),
             tags=get_tag_tensor_from_nx(G),
         )
+
         data_list.append(data)
 
     return data_list
@@ -76,15 +89,17 @@ def to_data_list(graph_list, class_to_label_dict):
 def parse_graph(file_descriptor):
     """
     Parses a single graph from file
+
     :param file_descriptor: file formatted accordingly to TU datasets
+
     :return: networkx graph
     """
 
     graph_header = file_descriptor.readline().strip().split()
-    num_nodes, label = [int(w) for w in graph_header]
+    num_nodes, cls = [int(w) for w in graph_header]
 
     G = nx.Graph()
-    G.graph["label"] = str(label)
+    G.graph["class"] = str(cls)
 
     for node_ind in range(num_nodes):
 
@@ -126,33 +141,48 @@ def parse_node(file_descriptor):
     return Node(tag, neighbors, attrs)
 
 
-def get_degree_tensor_from_nx(G: nx.Graph):
+def get_degree_tensor_from_nx(G: nx.Graph) -> Tensor:
     """
-    Returns node degrees as a list
+    Returns node degrees as a tensor
     :param G: networkx graph
-    :return: list of degrees
+
+    :return: tensor ~ (num_nodes) with tensor[i] = degree of node i
     """
     degree_list = sorted(list(G.degree), key=lambda x: x[0])
+
     return torch.tensor([pair[1] for pair in degree_list])
 
 
-def get_tag_tensor_from_nx(G: nx.Graph):
+def get_tag_tensor_from_nx(G: nx.Graph) -> Tensor:
+    """
+    Returns node tags as a tensor
+    :param G: networkx graph
+
+    :return: tensor ~ (num_nodes) with tensor[i] = tag of node i
+    """
+
     tag_dict = nx.get_node_attributes(G, "tag")
     tag_tuples = [(key, value) for key, value in tag_dict.items()]
-    tag_tuples_sorted = sorted(tag_tuples, key=lambda t: t[0])
-    tags_sorted_by_node = [tup[1] for tup in tag_tuples_sorted]
+
+    node_and_tags_sorted_by_node = sorted(tag_tuples, key=lambda t: t[0])
+    tags_sorted_by_node = [tup[1] for tup in node_and_tags_sorted_by_node]
+
     return torch.tensor(tags_sorted_by_node)
 
 
-def set_node_features(data_list: List[Data], attr_to_consider):
+def set_node_features(data_list: Sequence[Data], attr_to_consider):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
-    :param data_list:
-    :param attr_to_consider:
-    :return:
+    In place function
+
+    :param data_list: list of preprocessed graphs as PyG Data objects
+    :param attr_to_consider: tags, degree or both
+
     """
     assert attr_to_consider in {"tag", "degree", "both"}
+
     one_hot_tags, one_hot_degrees = None, None
+
     if attr_to_consider in {"tag", "both"}:
         all_tags = torch.cat([data.tags for data in data_list], 0)
         one_hot_tags = get_one_hot_attrs(all_tags, data_list)
@@ -171,13 +201,20 @@ def set_node_features(data_list: List[Data], attr_to_consider):
 
 
 def get_one_hot_attrs(attrs, data_list):
-    # compute unique values
+    """
+
+    :param attrs:
+    :param data_list:
+    :return:
+    """
+    # unique_attrs contains the unique values found in attrs,
+    # corrs contains the indices of the unique array that reconstruct the input array
     unique_attrs, corrs = np.unique(attrs, return_inverse=True, axis=0)
     num_different_attrs = len(unique_attrs)
 
     # encode
-    pointer = 0
     all_one_hot_attrs = []
+    pointer = 0
 
     for data in data_list:
         hots = torch.LongTensor(corrs[pointer : pointer + data.num_nodes])
@@ -185,28 +222,40 @@ def get_one_hot_attrs(attrs, data_list):
 
         all_one_hot_attrs.append(data_one_hot_attrs)
         pointer += data.num_nodes
+
     return all_one_hot_attrs
 
 
-def get_edge_index_from_nx(G: nx.Graph):
+def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
     """
     Extracts edge index from networkx graph
-    :param G:
-    :return:
+    :param G: networkx graph
+    :return: tensor ~ (2, num_edges) containing all the edges in the graph G
     """
-    return torch.tensor(list(G.edges), dtype=torch.long).t().contiguous().view(2, -1)
+    # shape (num_edges, 2)
+    edges_tensor = torch.tensor(list(G.edges), dtype=torch.long)
+
+    return edges_tensor.t().contiguous()
 
 
-def get_label_dict(graph_list):
+def get_label_dict(graph_list) -> Dict:
+    """
+    Obtains all the labels present in the data and maps them to progressive integers.
+
+    :param graph_list: list of networkx graphs
+
+    :return: map that maps each string class to an integer
+    """
     label_dict = {}
+
     for graph in graph_list:
-        label = graph.graph["label"]
+        label = graph.graph["class"]
+
         if label not in label_dict:
             label_dict[label] = len(label_dict)
 
     return label_dict
 
 
-# TODO: implement
 def load_query_support_idxs(path):
-    pass
+    raise NotImplementedError

@@ -4,11 +4,8 @@ from typing import Dict, List
 import hydra
 import omegaconf
 import pytorch_lightning as pl
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 from pytorch_lightning import Callback
-
-# Force the execution of __init__.py if this file is executed directly.
-from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nn_core.callbacks import NNTemplateCore
 from nn_core.common import PROJECT_ROOT
@@ -18,31 +15,11 @@ from nn_core.serialization import NNCheckpointIO, load_model
 
 import fs_grl  # noqa
 from fs_grl.pl_modules.transfer_learning_source import TransferLearningSource
+from fs_grl.utils import build_callbacks, get_checkpoint_callback, handle_fast_dev_run
+
+# Force the execution of __init__.py if this file is executed directly.
 
 pylogger = logging.getLogger(__name__)
-
-
-def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
-    """Instantiate the callbacks given their configuration.
-    Args:
-        cfg: a list of callbacks instantiable configuration
-        *args: a list of extra callbacks already instantiated
-    Returns:
-        the complete list of callbacks to use
-    """
-    callbacks: List[Callback] = list(args)
-
-    for callback in cfg:
-        pylogger.info(f"Adding callback <{callback['_target_'].split('.')[-1]}>")
-        callbacks.append(hydra.utils.instantiate(callback, _recursive_=False))
-
-    return callbacks
-
-
-def get_checkpoint_callback(callbacks):
-    for callback in callbacks:
-        if isinstance(callback, ModelCheckpoint):
-            return callback
 
 
 def run(cfg: DictConfig) -> str:
@@ -56,48 +33,35 @@ def run(cfg: DictConfig) -> str:
 
     fast_dev_run: bool = cfg.train.trainer.fast_dev_run
     if fast_dev_run:
-        pylogger.info(f"Debug mode <{cfg.train.trainer.fast_dev_run=}>. Forcing debugger friendly configuration!")
-        # Debuggers don't like GPUs nor multiprocessing
-        cfg.train.trainer.gpus = 0
-        cfg.nn.data.num_workers.train = 0
-        cfg.nn.data.num_workers.val = 0
-        cfg.nn.data.num_workers.test = 0
+        handle_fast_dev_run(cfg)
 
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 
-    # Instantiate datamodule
     pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
 
     metadata: Dict = getattr(datamodule, "metadata", None)
 
-    # Instantiate model
     pylogger.info(f"Instantiating <{cfg.nn.model.source['_target_']}>")
-
-    # META-TRAINING
-    # TODO: find a better way to differentiate source and target
     model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model.source, _recursive_=False, metadata=metadata)
 
-    # Instantiate the callbacks
     template_core: NNTemplateCore = NNTemplateCore(
         restore_cfg=cfg.train.get("restore", None),
     )
     callbacks: List[Callback] = build_callbacks(cfg.train.callbacks, template_core)
 
-    storage_dir: str = cfg.core.storage_dir
-
     logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
 
     pylogger.info("Instantiating the <Trainer>")
     trainer = pl.Trainer(
-        default_root_dir=storage_dir,
+        default_root_dir=cfg.core.storage_dir,
         plugins=[NNCheckpointIO(jailing_dir=logger.run_dir)],
         logger=logger,
         callbacks=callbacks,
         **cfg.train.trainer,
     )
 
-    pylogger.info("Starting training!")
+    pylogger.info("Starting meta-training!")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
 
     pylogger.info("Starting meta-testing.")
@@ -108,7 +72,7 @@ def run(cfg: DictConfig) -> str:
     callbacks: List[Callback] = build_callbacks(cfg.train["meta-testing-callbacks"], template_core)
 
     trainer = pl.Trainer(
-        default_root_dir=storage_dir,
+        default_root_dir=cfg.core.storage_dir,
         logger=logger,
         callbacks=callbacks,
         **cfg.train["meta-testing-trainer"],
