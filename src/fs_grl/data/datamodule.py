@@ -43,6 +43,7 @@ class MetaData:
         Args:
             class_to_label_dict
             feature_dim
+            num_classes_per_episode
             classes_split
         """
         self.classes_to_label_dict = class_to_label_dict
@@ -98,7 +99,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         separated_query_support: bool,
         support_ratio,
         train_ratio,
-        episode_hparams: EpisodeHParams,
+        test_episode_hparams: EpisodeHParams,
         num_train_episodes,
         num_test_episodes,
         num_workers: DictConfig,
@@ -119,7 +120,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         :param support_ratio: percentage of samples used as support, meaningful only
                             when support and queries are split
 
-        :param episode_hparams: number N of classes per episode, number K of supports per class and
+        :param test_episode_hparams: number N of classes per episode, number K of supports per class and
                                 number Q of queries per class
         :param num_train_episodes: how many episodes per one training epoch
         :param num_test_episodes: how many episodes for testing
@@ -137,7 +138,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.classes_split_path = classes_split_path
         self.query_support_split_path = query_support_split_path
 
-        self.episode_hparams = instantiate(episode_hparams)
+        self.test_episode_hparams = instantiate(test_episode_hparams)
         self.num_train_episodes = num_train_episodes
         self.num_test_episodes = num_test_episodes
 
@@ -181,7 +182,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         metadata = MetaData(
             class_to_label_dict=self.class_to_label_dict,
             feature_dim=self.feature_dim,
-            num_classes_per_episode=self.episode_hparams.num_classes_per_episode,
+            num_classes_per_episode=self.test_episode_hparams.num_classes_per_episode,
             classes_split=self.classes_split,
         )
 
@@ -262,8 +263,9 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         gpus: Optional[Union[List[int], str, int]],
         classes_split_path: Optional[str],
         query_support_split_path,
-        episode_hparams: EpisodeHParams,
+        train_episode_hparams: EpisodeHParams,
         val_episode_hparams: EpisodeHParams,
+        test_episode_hparams: EpisodeHParams,
         support_ratio,
         train_ratio,
         num_train_episodes,
@@ -278,7 +280,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             data_dir=data_dir,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
-            episode_hparams=episode_hparams,
+            test_episode_hparams=test_episode_hparams,
             num_train_episodes=num_train_episodes,
             num_test_episodes=num_test_episodes,
             separated_query_support=separated_query_support,
@@ -288,7 +290,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             batch_size=batch_size,
             gpus=gpus,
         )
-        self.val_episode_hparams = val_episode_hparams
+        self.train_episode_hparams = instantiate(train_episode_hparams)
+        self.val_episode_hparams = instantiate(val_episode_hparams)
 
     def setup(self, stage: Optional[str] = None):
 
@@ -307,7 +310,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 n_episodes=self.num_train_episodes,
                 class_to_label_dict=self.class_to_label_dict,
                 stage_labels=self.base_labels,
-                episode_hparams=self.episode_hparams,
+                episode_hparams=self.train_episode_hparams,
                 separated_query_support=self.separated_query_support,
             )
 
@@ -329,7 +332,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                     n_episodes=self.num_test_episodes,
                     stage_labels=self.novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
-                    episode_hparams=self.episode_hparams,
+                    episode_hparams=self.test_episode_hparams,
                     separated_query_support=False,
                 )
             ]
@@ -337,7 +340,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
     def train_dataloader(self) -> EpisodicDataLoader:
         return EpisodicDataLoader(
             dataset=self.train_dataset,
-            episode_hparams=self.episode_hparams,
+            episode_hparams=self.test_episode_hparams,
             batch_size=self.batch_size.train,
             num_workers=self.num_workers.train,
             pin_memory=self.pin_memory,
@@ -347,7 +350,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         return [
             EpisodicDataLoader(
                 dataset=dataset,
-                episode_hparams=self.episode_hparams,
+                episode_hparams=self.test_episode_hparams,
                 shuffle=False,
                 batch_size=self.batch_size.test,
                 num_workers=self.num_workers.test,
@@ -383,7 +386,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         query_support_split_path,
         separated_query_support: bool,
         support_ratio,
-        episode_hparams: EpisodeHParams,
+        test_episode_hparams: EpisodeHParams,
         num_train_episodes,
         num_test_episodes,
         train_ratio,
@@ -403,7 +406,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             train_ratio=train_ratio,
             num_train_episodes=num_train_episodes,
             num_test_episodes=num_test_episodes,
-            episode_hparams=episode_hparams,
+            test_episode_hparams=test_episode_hparams,
             num_workers=num_workers,
             batch_size=batch_size,
             gpus=gpus,
@@ -442,7 +445,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                     n_episodes=self.num_test_episodes,
                     stage_labels=local_novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
-                    episode_hparams=self.episode_hparams,
+                    episode_hparams=self.test_episode_hparams,
                     separated_query_support=False,
                 )
             ]
@@ -505,7 +508,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         return [
             EpisodicDataLoader(
                 dataset=dataset,
-                episode_hparams=self.episode_hparams,
+                episode_hparams=self.test_episode_hparams,
                 shuffle=False,
                 batch_size=1,
                 num_workers=self.num_workers.test,
