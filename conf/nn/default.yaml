@@ -9,10 +9,10 @@
 #   - NEVER use both on TRIANGLES, as tags are the same as degree, other datasets must still be tried
 
 defaults:
-  - model/gnn_embedding_cosine
+  - model/transfer_learning
 
 data:
-  _target_: fs_grl.data.datamodule.GraphMetaDataModule
+  _target_: fs_grl.data.datamodule.GraphTransferDataModule
 
   dataset_name: TRIANGLES
   data_features_to_consider: degree
@@ -28,7 +28,7 @@ data:
   val_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams
     num_queries_per_class: 5
-    num_classes_per_episode: 2
+    num_classes_per_episode: 3
     num_supports_per_class: 5
 
   test_episode_hparams:

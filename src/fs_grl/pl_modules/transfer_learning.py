@@ -31,7 +31,10 @@ class TransferLearningBaseline(MyLightningModule, ABC):
                 if cm_reset:
                     metric.reset()
             else:
+                # TODO: fix, this is called in validation_step where the metrics are already computed
+                #       step_wise, but also in on_train_batch_end where the metrics must be computed
                 to_log[metric_name] = metric
+                continue
 
         self.log_dict(to_log, on_step=on_step, on_epoch=on_epoch)
 
@@ -53,7 +56,6 @@ class TransferLearningBaseline(MyLightningModule, ABC):
 
     def plot_cm(self, cm: ConfusionMatrix) -> go.Figure:
         z: np.ndarray = cm.compute().cpu().numpy()
-        # TODO
         x = y = list(self.classes)
         class2index = {c: i for i, c in enumerate(self.classes)}
 

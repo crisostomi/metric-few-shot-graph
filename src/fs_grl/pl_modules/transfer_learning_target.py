@@ -23,9 +23,9 @@ pylogger = logging.getLogger(__name__)
 class TransferLearningTarget(TransferLearningBaseline):
     def __init__(
         self,
-        embedder,
-        initial_state_path,
-        classifier_num_mlp_layers,
+        embedder: nn.Module,
+        initial_state_path: str,
+        classifier_num_mlp_layers: int,
         metadata: Optional[MetaData] = None,
         *args,
         **kwargs,
@@ -42,8 +42,8 @@ class TransferLearningTarget(TransferLearningBaseline):
         self.classifier_num_mlp_layers = classifier_num_mlp_layers
 
         self.classes = metadata.classes_split["novel"]
-        self.log_prefix = "meta-testing"
 
+        self.log_prefix = "meta-testing"
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))
 
@@ -64,7 +64,6 @@ class TransferLearningTarget(TransferLearningBaseline):
                 for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
-
         self.test_metrics[f"{self.log_prefix}/test/cm"] = torchmetrics.ConfusionMatrix(
             num_classes=len(self.classes), normalize=None
         )
@@ -109,6 +108,8 @@ class TransferLearningTarget(TransferLearningBaseline):
         return model_out
 
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
+        self.train()
+        self.embedder.eval()
 
         step_out = self.step(batch.supports, "train")
 
@@ -119,7 +120,12 @@ class TransferLearningTarget(TransferLearningBaseline):
         self.freeze_embedder()
 
     def on_train_batch_end(self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        """
+        Testing of the fine-tuning phase. After the model has trained on the K*N supports, it is
+        tested on the N*Q queries
+        """
         # It's testing time!
+        self.eval()
         logits = self(batch.queries)["logits"]
 
         class_probs = torch.log_softmax(logits, dim=-1)
@@ -131,6 +137,9 @@ class TransferLearningTarget(TransferLearningBaseline):
         self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 
     def reset_fine_tuning(self):
+        """
+        Resets the model to the original pretrained state
+        """
         self.load_state_dict(torch.load(self.initial_state_path))
         self.trainer: pytorch_lightning.Trainer
         (
@@ -140,7 +149,6 @@ class TransferLearningTarget(TransferLearningBaseline):
         ) = self.trainer.init_optimizers(model=None)
 
     def freeze_embedder(self):
-        """ """
         self.embedder.eval()
         self.embedder.requires_grad_(False)
 

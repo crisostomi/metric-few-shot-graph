@@ -5,7 +5,7 @@ from abc import ABC
 from collections import Counter
 from itertools import groupby
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import hydra
 import omegaconf
@@ -307,7 +307,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
             self.train_dataset = IterableEpisodicDataset(
                 samples=base_samples_train,
-                n_episodes=self.num_train_episodes,
+                num_episodes=self.num_train_episodes,
                 class_to_label_dict=self.class_to_label_dict,
                 stage_labels=self.base_labels,
                 episode_hparams=self.train_episode_hparams,
@@ -317,7 +317,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             self.val_datasets = [
                 MapEpisodicDataset(
                     samples=base_samples_val,
-                    n_episodes=self.num_test_episodes,
+                    num_episodes=self.num_test_episodes,
                     stage_labels=self.base_labels,
                     class_to_label_dict=self.class_to_label_dict,
                     episode_hparams=self.val_episode_hparams,
@@ -329,7 +329,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
-                    n_episodes=self.num_test_episodes,
+                    num_episodes=self.num_test_episodes,
                     stage_labels=self.novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
                     episode_hparams=self.test_episode_hparams,
@@ -340,24 +340,11 @@ class GraphMetaDataModule(GraphFewShotDataModule):
     def train_dataloader(self) -> EpisodicDataLoader:
         return EpisodicDataLoader(
             dataset=self.train_dataset,
-            episode_hparams=self.test_episode_hparams,
+            episode_hparams=self.train_episode_hparams,
             batch_size=self.batch_size.train,
             num_workers=self.num_workers.train,
             pin_memory=self.pin_memory,
         )
-
-    def test_dataloader(self) -> Sequence[EpisodicDataLoader]:
-        return [
-            EpisodicDataLoader(
-                dataset=dataset,
-                episode_hparams=self.test_episode_hparams,
-                shuffle=False,
-                batch_size=self.batch_size.test,
-                num_workers=self.num_workers.test,
-                pin_memory=self.pin_memory,
-            )
-            for dataset in self.test_datasets
-        ]
 
     def val_dataloader(self):
         return [
@@ -370,6 +357,19 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 pin_memory=self.pin_memory,
             )
             for dataset in self.val_datasets
+        ]
+
+    def test_dataloader(self) -> Sequence[EpisodicDataLoader]:
+        return [
+            EpisodicDataLoader(
+                dataset=dataset,
+                episode_hparams=self.test_episode_hparams,
+                shuffle=False,
+                batch_size=self.batch_size.test,
+                num_workers=self.num_workers.test,
+                pin_memory=self.pin_memory,
+            )
+            for dataset in self.test_datasets
         ]
 
     def predict_dataloader(self):
@@ -419,7 +419,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             split_samples = self.split_base_novel_samples()
             base_samples, novel_samples = split_samples["base"], split_samples["novel"]
 
-            base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
+            base_samples, base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
             pylogger.info(f"Base global to local labels: {base_global_to_local_labels}")
 
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
@@ -434,7 +434,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 )
             ]
 
-            novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
+            novel_samples, novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
             pylogger.info(f"Novel global to local labels: {novel_global_to_local_labels}")
 
             local_novel_labels = [ind for ind, label in enumerate(sorted(self.novel_labels))]
@@ -442,7 +442,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
-                    n_episodes=self.num_test_episodes,
+                    num_episodes=self.num_test_episodes,
                     stage_labels=local_novel_labels,
                     class_to_label_dict=self.class_to_label_dict,
                     episode_hparams=self.test_episode_hparams,
@@ -450,14 +450,13 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 )
             ]
 
-    def convert_to_local_labels(self, samples, base_or_novel):
+    def convert_to_local_labels(self, samples: List[Data], base_or_novel: str) -> Tuple[List[Data], Dict]:
         """
         Given a list of samples, reassign their labels to be ordered from 0 to num_labels -1
         e.g. [2, 5, 10] --> [0, 1, 2]
-        return the mapping
         :param samples:
-        :param base_or_novel:
-        :return:
+        :param base_or_novel: whether labels are base or novel ones
+        :return: samples with local labels and mapping
         """
         stage_labels = self.labels_split[base_or_novel]
 
@@ -466,14 +465,18 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         for sample in samples:
             sample.y.apply_(lambda x: global_to_local_labels[x])
 
-        return global_to_local_labels
+        return samples, global_to_local_labels
 
-    def split_train_val(self, data_list):
+    def split_train_val(self, data_list: List[Data]) -> Tuple[List[Data], List[Data]]:
+        f"""
+        Splits samples into training and validation according to {self.train_ratio}
+        :return:
+        """
 
         train_samples, val_samples = random_split_sequence(sequence=data_list, split_ratio=self.train_ratio)
 
-        print(f"Train label dist: {Counter(sample.y.item() for sample in train_samples)}")
-        print(f"Val label dist: {Counter(sample.y.item() for sample in val_samples)}")
+        pylogger.info(f"Train label dist: {Counter(sample.y.item() for sample in train_samples)}")
+        pylogger.info(f"Val label dist: {Counter(sample.y.item() for sample in val_samples)}")
 
         return train_samples, val_samples
 

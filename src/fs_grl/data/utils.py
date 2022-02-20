@@ -6,20 +6,6 @@ from typing import Iterable, List, Tuple
 
 import numpy as np
 
-AnnotatedSample = Tuple[str, int]
-
-
-def get_local_to_global_class_mapping(global_classes: List):
-    """
-    :param global_classes:
-    :return:
-    """
-    global_to_local = {}
-    for key in sorted(global_classes):
-        global_to_local[key] = len(global_to_local)
-    local_to_global = {v: k for k, v in global_to_local.items()}
-    return local_to_global
-
 
 def flatten(iterable: Iterable) -> List:
     """ """

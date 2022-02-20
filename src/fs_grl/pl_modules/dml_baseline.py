@@ -25,7 +25,6 @@ class DMLBaseline(MyLightningModule):
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
         super().__init__()
 
-        # populate self.hparams with args and kwargs automagically!
         # We want to skip metadata since it is saved separately by the
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
@@ -85,7 +84,7 @@ class DMLBaseline(MyLightningModule):
         reshaped_similarities = similarities.reshape((-1, num_classes_per_episode))
         pred_labels = torch.argmax(reshaped_similarities, dim=-1)
 
-        target_labels = batch.label_targets
+        target_labels = batch.local_labels
 
         for metric_name, metric in self.test_metrics.items():
             metric_res = metric(preds=pred_labels, target=target_labels)

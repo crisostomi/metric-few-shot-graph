@@ -1,3 +1,4 @@
+import itertools
 import logging
 from typing import Any, Dict, Mapping, Optional
 
@@ -8,7 +9,7 @@ import torch
 import torchmetrics
 from hydra.utils import instantiate
 from torch import nn
-from torchmetrics import Accuracy, FBeta
+from torchmetrics import Accuracy, FBetaScore
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
@@ -26,8 +27,7 @@ class TransferLearningSource(TransferLearningBaseline):
     def __init__(self, classifier_num_mlp_layers, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
         super().__init__()
 
-        # populate self.hparams with args and kwargs automagically!
-        # We want to skip metadata since it is saved separately by the
+        # We want to skip metadata since it is saved separately
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
         self.metadata = metadata
@@ -40,23 +40,21 @@ class TransferLearningSource(TransferLearningBaseline):
         )
 
         self.classes = metadata.classes_split["base"]
+
+        reductions = ["micro", "weighted", "macro", "none"]
+        metrics = (("F1", FBetaScore), ("acc", Accuracy))
+
         self.val_metrics = nn.ModuleDict(
             {
-                "val/F1/micro": FBeta(num_classes=len(self.classes)),
-                "val/F1/weighted": FBeta(num_classes=len(self.classes), average="weighted"),
-                "val/F1/macro": FBeta(num_classes=len(self.classes), average="macro"),
-                "val/F1/none": FBeta(num_classes=len(self.classes), average="none"),
-                "val/acc/micro": Accuracy(num_classes=len(self.classes)),
-                "val/acc/weighted": Accuracy(num_classes=len(self.classes), average="weighted"),
-                "val/acc/macro": Accuracy(num_classes=len(self.classes), average="macro"),
-                "val/acc/none": Accuracy(num_classes=len(self.classes), average="none"),
-                "val/cm": torchmetrics.ConfusionMatrix(num_classes=len(self.classes), normalize=None),
+                f"val/{metric_name}/{reduction}": metric(num_classes=len(self.classes), average=reduction)
+                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
+        self.val_metrics["val/cm"] = torchmetrics.ConfusionMatrix(num_classes=len(self.classes), normalize=None)
         self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=len(self.classes))})
 
         self.classifier = MLP(
-            num_layers=2,
+            num_layers=self.classifier_num_mlp_layers,
             input_dim=self.embedder.embedding_dim,
             output_dim=len(self.classes),
             hidden_dim=self.embedder.embedding_dim // 2,
@@ -65,9 +63,7 @@ class TransferLearningSource(TransferLearningBaseline):
         self.loss_func = nn.CrossEntropyLoss()
 
     def forward(self, batch: Any) -> Dict:
-        """Method for the forward pass.
-        'training_step', 'validation_step' and 'test_step' should call
-        this method in order to compute the output predictions and the loss.
+        """
         Returns:
             output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
         """
@@ -91,6 +87,7 @@ class TransferLearningSource(TransferLearningBaseline):
         step_out = self.step(batch, "train")
 
         logits = step_out["logits"]
+
         class_probs = torch.softmax(logits, dim=-1)
         preds = torch.argmax(class_probs, dim=-1)
 
@@ -105,6 +102,7 @@ class TransferLearningSource(TransferLearningBaseline):
         step_out = self.step(batch, "val")
 
         logits = step_out["logits"]
+
         class_probs = torch.softmax(logits, dim=-1)
         preds = torch.argmax(class_probs, dim=-1)
 

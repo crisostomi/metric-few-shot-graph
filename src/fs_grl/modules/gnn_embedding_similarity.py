@@ -66,7 +66,7 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         embedded_supports_per_episode = embedded_supports.split(tuple([num_supports_per_episode] * num_episodes))
         # sequence of labels for each episode, each has shape (num_supports_per_episode)
         labels_per_episode = batch.supports.y.split(tuple([num_supports_per_episode] * num_episodes))
-        classes_per_episode = batch.labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
+        classes_per_episode = batch.global_labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
 
         all_class_prototypes = []
         for episode in range(num_episodes):

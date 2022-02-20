@@ -24,19 +24,6 @@ source:
 #    last_epoch: -1
 #    verbose: False
 
-#    _target_: fs_grl.modules.gin.GINEmbedder
-#    num_layers: 2
-#    num_mlp_layers: 2
-#    feature_dim: ???
-#    hidden_dim: 64
-#    output_dim: 64
-#    final_dropout: 0.5
-#    learn_eps: true
-#    graph_pooling_type: sum
-#    neighbor_pooling_type: sum
-
-
-
 target:
   _target_: fs_grl.pl_modules.transfer_learning_target.TransferLearningTarget
 
@@ -46,4 +33,4 @@ target:
 
   optimizer:
     _target_: torch.optim.Adam
-    lr: 5e-2
+    lr: 1e-2
