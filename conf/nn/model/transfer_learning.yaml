@@ -5,7 +5,7 @@ source:
 
   optimizer:
     _target_: torch.optim.Adam
-    lr: 1e-3
+    lr: 1e-4
 
   embedder:
     _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
@@ -46,4 +46,4 @@ target:
 
   optimizer:
     _target_: torch.optim.Adam
-    lr: 7e-2
+    lr: 5e-2

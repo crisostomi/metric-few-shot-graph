@@ -1,7 +1,13 @@
-# Consider the appropriate datamodule when switching model
-# distance metric learning --> GraphMetaDataModule
-# transfer learning --> GraphTransferDataModule
-# CHECK num_classes_per_episode when changing dataset
+# when changing model:
+#   - change corresponding datamodule
+#       - distance metric learning --> GraphMetaDataModule
+#       - transfer learning --> GraphTransferDataModule
+#   - change max_epochs and patience accordingly to the convergence time of the model
+
+# when changing dataset:
+#   - CHECK num_classes_per_episode
+#   - NEVER use both on TRIANGLES, as tags are the same as degree, other datasets must still be tried
+
 defaults:
   - model/gnn_embedding_cosine
 
@@ -9,7 +15,7 @@ data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
   dataset_name: TRIANGLES
-  data_features_to_consider: both
+  data_features_to_consider: degree
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
 
