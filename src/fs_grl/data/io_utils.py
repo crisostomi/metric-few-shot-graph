@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Sequence
+from typing import Dict, List
 
 import networkx as nx
 import numpy as np
@@ -58,7 +58,7 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict) -> Sequence[Data]:
+def to_data_list(graph_list, class_to_label_dict) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -170,7 +170,7 @@ def get_tag_tensor_from_nx(G: nx.Graph) -> Tensor:
     return torch.tensor(tags_sorted_by_node)
 
 
-def set_node_features(data_list: Sequence[Data], attr_to_consider):
+def set_node_features(data_list: List[Data], attr_to_consider):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     In place function

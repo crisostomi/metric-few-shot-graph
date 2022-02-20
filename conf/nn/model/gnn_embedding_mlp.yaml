@@ -6,11 +6,8 @@ optimizer:
 model:
   _target_: fs_grl.modules.gnn_embedding_mlp.GNNEmbeddingMLP
   num_mlp_layers: 2
-  hidden_dim: 64
-  embedding_dim: 64
   feature_dim: ???
   num_classes: ???
-  episode_hparams: ???
   mlp_non_linearity: tanh
 
   embedder:

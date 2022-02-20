@@ -59,14 +59,13 @@ def run(cfg: DictConfig) -> str:
         logger=logger,
         callbacks=callbacks,
         **cfg.train.trainer,
-        checkpoint_callback=False,
     )
 
     pylogger.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule)
 
     pylogger.info("Starting testing!")
-    trainer.test(model=model, datamodule=datamodule)
+    trainer.test(datamodule=datamodule)
 
     if logger is not None:
         logger.experiment.finish()

@@ -6,29 +6,16 @@ import torch.nn as nn
 from hydra.utils import instantiate
 from torch_geometric.data import Batch
 
-from fs_grl.data.episode import EpisodeBatch, EpisodeHParams
+from fs_grl.data.episode import EpisodeBatch
 
 
 class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
-    def __init__(
-        self, cfg, feature_dim, hidden_dim, embedding_dim, num_classes, episode_hparams: EpisodeHParams, **kwargs
-    ):
+    def __init__(self, cfg, feature_dim, num_classes, **kwargs):
         super().__init__()
         self.cfg = cfg
 
         self.feature_dim = feature_dim
-        self.hidden_dim = hidden_dim
         self.num_classes = num_classes
-        self.embedding_dim = embedding_dim
-
-        self.episode_hparams = episode_hparams
-
-        self.num_supports_per_episode = (
-            self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
-        )
-        self.num_queries_per_episode = (
-            self.episode_hparams.num_queries_per_class * self.episode_hparams.num_classes_per_episode
-        )
 
         self.embedder = instantiate(
             self.cfg.embedder,
@@ -71,11 +58,15 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         device = embedded_supports.device
         num_episodes = batch.num_episodes
 
+        num_supports_per_episode = (
+            batch.episode_hparams.num_supports_per_class * batch.episode_hparams.num_classes_per_episode
+        )
+
         # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
-        embedded_supports_per_episode = embedded_supports.split(tuple([self.num_supports_per_episode] * num_episodes))
+        embedded_supports_per_episode = embedded_supports.split(tuple([num_supports_per_episode] * num_episodes))
         # sequence of labels for each episode, each has shape (num_supports_per_episode)
-        labels_per_episode = batch.supports.y.split(tuple([self.num_supports_per_episode] * num_episodes))
-        classes_per_episode = batch.labels.split([self.episode_hparams.num_classes_per_episode] * num_episodes)
+        labels_per_episode = batch.supports.y.split(tuple([num_supports_per_episode] * num_episodes))
+        classes_per_episode = batch.labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
 
         all_class_prototypes = []
         for episode in range(num_episodes):
@@ -103,11 +94,16 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         :param class_prototypes:
         :return:
         """
+
+        num_queries_per_episode = (
+            batch.episode_hparams.num_queries_per_class * batch.episode_hparams.num_classes_per_episode
+        )
+
         batch_size = batch.num_episodes
 
         batch_queries = []
         batch_prototypes = []
-        embedded_queries_per_episode = embedded_queries.split(tuple([self.num_queries_per_episode] * batch_size))
+        embedded_queries_per_episode = embedded_queries.split(tuple([num_queries_per_episode] * batch_size))
 
         for episode in range(batch_size):
 
@@ -124,10 +120,10 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
             episode_embedded_queries = embedded_queries_per_episode[episode]
 
             repeated_embedded_queries = episode_embedded_queries.repeat_interleave(
-                self.episode_hparams.num_classes_per_episode, dim=0
+                batch.episode_hparams.num_classes_per_episode, dim=0
             )
 
-            repeated_class_prototypes = class_prototype_matrix.repeat((self.num_queries_per_episode, 1))
+            repeated_class_prototypes = class_prototype_matrix.repeat((num_queries_per_episode, 1))
 
             batch_queries.append(repeated_embedded_queries)
             batch_prototypes.append(repeated_class_prototypes)

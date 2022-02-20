@@ -36,13 +36,11 @@ class DMLBaseline(MyLightningModule):
             cfg=self.hparams.model,
             feature_dim=self.metadata.feature_dim,
             num_classes=self.metadata.num_classes,
-            episode_hparams=self.metadata.episode_hparams,
+            num_classes_per_episode=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
 
-        self.val_metrics = nn.ModuleDict(
-            {"val/micro_acc": Accuracy(num_classes=metadata.episode_hparams.num_classes_per_episode)}
-        )
+        self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
 
     def forward(self, batch: EpisodeBatch) -> Dict:
         """Method for the forward pass.
@@ -70,8 +68,13 @@ class DMLBaseline(MyLightningModule):
         step_out = self.step(batch, "train")
         return step_out
 
-    def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
+    def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
+
+        return step_out
+
+    def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
+        step_out = self.step(batch, "test")
 
         # shape (num_queries_batch) =
         #       num_queries_per_class * num_classes_per_episode * batch_size * num_classes_per_episode
@@ -84,7 +87,7 @@ class DMLBaseline(MyLightningModule):
 
         target_labels = batch.label_targets
 
-        for metric_name, metric in self.val_metrics.items():
+        for metric_name, metric in self.test_metrics.items():
             metric_res = metric(preds=pred_labels, target=target_labels)
             self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
 

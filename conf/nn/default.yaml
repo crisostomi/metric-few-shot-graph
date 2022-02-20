@@ -2,10 +2,10 @@
 # distance metric learning --> GraphMetaDataModule
 # transfer learning --> GraphTransferDataModule
 defaults:
-  - model/transfer_learning
+  - model/gnn_embedding_cosine
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule
+  _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
   dataset_name: TRIANGLES
   data_features_to_consider: degree
@@ -18,13 +18,19 @@ data:
     num_classes_per_episode: 2
     num_supports_per_class: 10
 
+  val_episode_hparams:
+    _target_: fs_grl.data.episode.EpisodeHParams
+    num_queries_per_class: 5
+    num_classes_per_episode: 2
+    num_supports_per_class: 5
+
   num_train_episodes: 2000
   num_test_episodes: 500
   support_ratio: 0.8
 
   separated_query_support: false
   query_support_split_path: null
-  train_val_split_ratio: 0.9
+  train_ratio: 0.9
 
   datasets:
     train:
