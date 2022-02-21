@@ -34,7 +34,6 @@ class TransferLearningBaseline(MyLightningModule, ABC):
                 # TODO: fix, this is called in validation_step where the metrics are already computed
                 #       step_wise, but also in on_train_batch_end where the metrics must be computed
                 to_log[metric_name] = metric
-                continue
 
         self.log_dict(to_log, on_step=on_step, on_epoch=on_epoch)
 

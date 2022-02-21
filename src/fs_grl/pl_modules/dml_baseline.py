@@ -25,7 +25,6 @@ class DMLBaseline(MyLightningModule):
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
         super().__init__()
 
-        # We want to skip metadata since it is saved separately by the
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
         self.metadata = metadata
