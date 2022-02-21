@@ -40,6 +40,7 @@ class DMLBaseline(MyLightningModule):
         )
 
         self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
+        self.val_metrics = nn.ModuleDict({"val/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
 
     def forward(self, batch: EpisodeBatch) -> Dict:
         """Method for the forward pass.
@@ -52,7 +53,7 @@ class DMLBaseline(MyLightningModule):
         similarities = self.model(batch)
 
         loss = self.model.loss_func(similarities, batch.cosine_targets)
-        return {"loss": loss, "similarities": similarities}
+        return {"loss": loss, "similarities": similarities.detach()}
 
     def step(self, batch, split: str) -> Mapping[str, Any]:
 
@@ -70,14 +71,26 @@ class DMLBaseline(MyLightningModule):
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
 
+        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
+        similarities = step_out["similarities"]
+
+        num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
+        reshaped_similarities = similarities.reshape((-1, num_classes_per_episode))
+        pred_labels = torch.argmax(reshaped_similarities, dim=-1)
+
+        target_labels = batch.local_labels
+
+        for metric_name, metric in self.val_metrics.items():
+            metric_res = metric(preds=pred_labels, target=target_labels)
+            self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
+
         return step_out
 
     def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
+
         step_out = self.step(batch, "test")
 
-        # shape (num_queries_batch) =
-        #       num_queries_per_class * num_classes_per_episode * batch_size * num_classes_per_episode
-
+        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
         similarities = step_out["similarities"]
 
         num_classes_per_episode = batch.episode_hparams.num_classes_per_episode

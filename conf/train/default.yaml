@@ -88,7 +88,7 @@ logging:
   logger:
     _target_: pytorch_lightning.loggers.WandbLogger
     project: ${core.project_name}
-    entity: gladia
+    entity: null
     log_model: ${..upload.run_files}
     mode: 'online'
 
