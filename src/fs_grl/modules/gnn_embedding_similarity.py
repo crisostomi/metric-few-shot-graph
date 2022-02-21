@@ -53,8 +53,8 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         """
         Computes the prototype of each class as the mean of the embedded supports for that class
 
-        :param batch:
         :param embedded_supports: tensor ~ (num_supports_batch, embedding_dim)
+        :param batch:
         :return: a list where each entry corresponds to the class prototypes of an episode as a dict (Ex. all_class_prototypes[0]
                  contains the dict of the class prototypes of the first episode, and so on)
         """
