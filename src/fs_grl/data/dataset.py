@@ -14,16 +14,7 @@ from torch_geometric.data import Data
 from nn_core.common import PROJECT_ROOT
 
 from fs_grl.data.episode import Episode, EpisodeBatch, EpisodeHParams
-
-
-def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
-    """
-    Given a list of annotated_samples, return a map { label: list of samples with that label}
-    """
-    res = {}
-    for sample in annotated_samples:
-        res.setdefault(sample.y.item(), []).append(sample)
-    return res
+from fs_grl.data.utils import get_label_to_samples_map
 
 
 class TransferSourceDataset(Dataset):
@@ -70,6 +61,7 @@ class EpisodicDataset(ABC):
         self.class_to_label_dict = class_to_label_dict
 
         self.cls_to_supports: Dict[int : List[Data]] = get_label_to_samples_map(self.supports)
+
         self.cls_to_queries: Dict[int : List[Data]] = (
             get_label_to_samples_map(self.queries) if self.separated_query_support else None
         )

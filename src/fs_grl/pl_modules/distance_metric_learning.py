@@ -2,15 +2,11 @@ import itertools
 import logging
 from typing import Any, Mapping, Optional
 
-import hydra
-import omegaconf
-import pytorch_lightning as pl
 import torch
 from hydra.utils import instantiate
 from torch import nn
 from torchmetrics import Accuracy, FBetaScore
 
-from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule import MetaData
@@ -20,7 +16,7 @@ from fs_grl.pl_modules.pl_module import MyLightningModule
 pylogger = logging.getLogger(__name__)
 
 
-class DMLBaseline(MyLightningModule):
+class DistanceMetricLearning(MyLightningModule):
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
@@ -56,6 +52,7 @@ class DMLBaseline(MyLightningModule):
                 for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
+        self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
         # metrics computed without mapping
         # self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
@@ -83,6 +80,14 @@ class DMLBaseline(MyLightningModule):
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
         step_out = self.step(batch, "train")
+        similarities = step_out["similarities"]
+
+        predictions = self.get_predictions(similarities, batch)
+
+        for metric_name, metric in self.train_metrics.items():
+            metric_res = metric(preds=predictions, target=batch.queries.y)
+            self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
+
         return step_out
 
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
@@ -91,6 +96,38 @@ class DMLBaseline(MyLightningModule):
         # shape (B*(N*Q)*N)
         similarities = step_out["similarities"]
 
+        predictions = self.get_predictions(similarities, batch)
+
+        for metric_name, metric in self.val_metrics.items():
+            metric(preds=predictions, target=batch.queries.y)
+
+        self.log_metrics(split="val", on_step=True, on_epoch=True, cm_reset=False)
+
+        return step_out
+
+    def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
+
+        step_out = self.step(batch, "test")
+
+        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
+        similarities = step_out["similarities"]
+
+        predictions = self.get_predictions(similarities, batch)
+
+        for metric_name, metric in self.test_metrics.items():
+            metric(preds=predictions, target=batch.queries.y)
+
+        self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
+
+        return step_out
+
+    def get_predictions(self, similarities: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
+        """
+
+        :param similarities: shape (B * N*Q * N)
+        :param batch:
+        :return:
+        """
         num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
 
         # shape (B*(N*Q), N) contains the similarity between the query
@@ -104,36 +141,10 @@ class DMLBaseline(MyLightningModule):
             pred_labels=pred_labels, batch_global_labels=batch.global_labels, num_episodes=batch.num_episodes
         )
 
-        for metric_name, metric in self.val_metrics.items():
-            metric(preds=pred_global_labels, target=batch.queries.y)
+        return pred_global_labels
 
-        self.log_metrics(split="val", on_step=True, on_epoch=True, cm_reset=False)
-
-        return step_out
-
-    def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
-
-        step_out = self.step(batch, "test")
-
-        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
-        similarities = step_out["similarities"]
-
-        num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
-        reshaped_similarities = similarities.reshape((-1, num_classes_per_episode))
-        pred_labels = torch.argmax(reshaped_similarities, dim=-1)
-
-        pred_global_labels = self.map_pred_labels_to_global(
-            pred_labels=pred_labels, batch_global_labels=batch.global_labels, num_episodes=batch.num_episodes
-        )
-
-        for metric_name, metric in self.test_metrics.items():
-            metric(preds=pred_global_labels, target=batch.queries.y)
-
-        self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
-
-        return step_out
-
-    def map_pred_labels_to_global(self, pred_labels, batch_global_labels, num_episodes):
+    @staticmethod
+    def map_pred_labels_to_global(pred_labels, batch_global_labels, num_episodes):
         """
 
         :param pred_labels: (B*N*Q)
@@ -161,20 +172,3 @@ class DMLBaseline(MyLightningModule):
         mapped_labels = torch.cat(mapped_labels, dim=0)
 
         return mapped_labels
-
-
-@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")
-def main(cfg: omegaconf.DictConfig) -> None:
-    """Debug main to quickly develop the Lightning Module.
-    Args:
-        cfg: the hydra configuration
-    """
-    _: pl.LightningModule = hydra.utils.instantiate(
-        cfg.model,
-        optim=cfg.optim,
-        _recursive_=False,
-    )
-
-
-if __name__ == "__main__":
-    main()

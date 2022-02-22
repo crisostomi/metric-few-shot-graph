@@ -2,9 +2,10 @@ import math
 import operator
 from itertools import groupby
 from random import shuffle
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
+from torch_geometric.data import Data
 
 
 def flatten(iterable: Iterable) -> List:
@@ -59,3 +60,13 @@ def random_split_bucketed(sequence: List, split_ratio: float) -> Tuple[List, Lis
     shuffle(split_sequence_2)
 
     return split_sequence_1, split_sequence_2
+
+
+def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
+    """
+    Given a list of annotated_samples, return a map { label: list of samples with that label}
+    """
+    res = {}
+    for sample in annotated_samples:
+        res.setdefault(sample.y.item(), []).append(sample)
+    return res

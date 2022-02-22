@@ -1,9 +1,7 @@
 import json
 import logging
-import operator
 from abc import ABC
 from collections import Counter
-from itertools import groupby
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
@@ -20,7 +18,7 @@ from nn_core.common import PROJECT_ROOT
 from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset, TransferSourceDataset
 from fs_grl.data.episode import EpisodeHParams
 from fs_grl.data.io_utils import load_data, load_query_support_idxs
-from fs_grl.data.utils import flatten, random_split_bucketed, random_split_sequence
+from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed, random_split_sequence
 
 pylogger = logging.getLogger(__name__)
 
@@ -160,12 +158,13 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
         )
 
+        self.print_stats()
+
         self.labels_split = self.get_labels_split()
         self.base_labels, self.novel_labels = self.labels_split["base"], self.labels_split["novel"]
 
-        self.data_list_by_label = {
-            key.item(): list(value) for key, value in groupby(self.data_list, key=operator.attrgetter("y"))
-        }
+        self.data_list_by_label = get_label_to_samples_map(self.data_list)
+
         self.train_ratio = train_ratio
 
     @property
@@ -187,6 +186,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         )
 
         return metadata
+
+    def print_stats(self):
+        pylogger.info(f"Read {len(self.data_list)} graphs.")
+        pylogger.info(f"With label distribution: {Counter(sample.y.item() for sample in self.data_list)}")
 
     @property
     def feature_dim(self) -> int:

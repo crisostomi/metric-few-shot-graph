@@ -7,7 +7,7 @@ from pytorch_lightning import LightningModule
 
 from tests.conftest import load_checkpoint
 
-from fs_grl.pl_modules.dml_baseline import DMLBaseline
+from fs_grl.pl_modules.distance_metric_learning import DistanceMetricLearning
 from fs_grl.run_dml import run
 
 
@@ -45,7 +45,7 @@ def test_cfg_in_checkpoint(run_trainings_not_dry: str, cfg_all_not_dry: DictConf
     _check_run_path_in_checkpoint(checkpoint)
 
 
-class ModuleWithCustomCheckpoint(DMLBaseline):
+class ModuleWithCustomCheckpoint(DistanceMetricLearning):
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         checkpoint["test_key"] = "test_value"
 

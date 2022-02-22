@@ -1,7 +1,6 @@
 import torch
 from torch.nn import functional as F
 
-from fs_grl.data.episode import EpisodeHParams
 from fs_grl.modules.gnn_embedding_similarity import GNNEmbeddingSimilarity
 from fs_grl.modules.losses.margin import MarginLoss
 from fs_grl.modules.mlp import MLP
@@ -15,24 +14,28 @@ class GNNEmbeddingMLP(GNNEmbeddingSimilarity):
         hidden_dim,
         embedding_dim,
         num_classes,
-        episode_hparams: EpisodeHParams,
         num_mlp_layers,
         mlp_non_linearity,
+        margin,
         **kwargs
     ):
-        super().__init__(cfg, feature_dim, hidden_dim, embedding_dim, num_classes, episode_hparams)
+        super().__init__(
+            cfg,
+            feature_dim,
+            hidden_dim,
+        )
         self.num_layers = num_mlp_layers
         self.mlp_non_linearity = mlp_non_linearity
 
         self.similarity_network = MLP(
             num_layers=num_mlp_layers,
-            input_dim=embedding_dim * 2,
+            input_dim=embedding_dim,
             output_dim=1,
-            hidden_dim=embedding_dim * 2,
+            hidden_dim=embedding_dim,
             non_linearity=self.mlp_non_linearity,
         )
 
-        self.loss_func = MarginLoss(margin=0.5, reduction="mean")
+        self.loss_func = MarginLoss(margin=margin, reduction="mean")
 
     def get_similarities(self, batch_queries, batch_prototypes):
 

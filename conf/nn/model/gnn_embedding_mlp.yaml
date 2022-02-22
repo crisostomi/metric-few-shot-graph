@@ -1,4 +1,4 @@
-_target_: fs_grl.pl_modules.dml_baseline.DMLBaseline
+_target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
   _target_: torch.optim.Adam

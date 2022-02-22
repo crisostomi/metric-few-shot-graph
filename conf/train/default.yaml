@@ -53,7 +53,7 @@ callbacks:
 
 distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 5 # 50 for TL, 5 for DML
+    patience: 20 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -88,7 +88,7 @@ logging:
   logger:
     _target_: pytorch_lightning.loggers.WandbLogger
     project: ${core.project_name}
-    entity: null
+    entity: gladia
     log_model: ${..upload.run_files}
     mode: 'online'
 
