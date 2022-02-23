@@ -2,7 +2,8 @@ _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
   _target_: torch.optim.Adam
-  lr: 5e-5
+#  lr: 5e-5
+  lr: 1e-4
 
 model:
   _target_: fs_grl.modules.gnn_embedding_cosine.GNNEmbeddingCosine
@@ -17,5 +18,5 @@ model:
     embedding_dim: 32
     hidden_dim: 32
     num_convs: 2
-    dropout_rate: 0.5
-    pooling: GMT
+    dropout_rate: 0
+    pooling: sum # sum, GMT

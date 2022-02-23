@@ -5,7 +5,9 @@ from functools import partial
 from typing import Dict, List, Union
 
 import hydra
+import numpy as np
 import omegaconf
+import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import T_co
@@ -72,7 +74,8 @@ class EpisodicDataset(ABC):
         and then sampling K supports and Q queries for each class
         :return:
         """
-        labels = sorted(random.sample(self.stage_labels, self.episode_hparams.num_classes_per_episode))
+
+        labels = self.sample_labels()
 
         supports = []
         queries = []
@@ -112,6 +115,10 @@ class EpisodicDataset(ABC):
 
         return {"supports": cls_supports, "queries": cls_queries}
 
+    def sample_labels(self):
+        sampled_labels = random.sample(self.stage_labels, self.episode_hparams.num_classes_per_episode)
+        return sampled_labels
+
 
 class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset):
     def __init__(
@@ -122,8 +129,9 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
         class_to_label_dict: Dict,
         episode_hparams: EpisodeHParams,
         separated_query_support: bool,
+        datamodule: pl.LightningDataModule,
+        similarity_matrix_path: str = "",
     ):
-        """ """
         super().__init__(
             num_episodes=num_episodes,
             samples=samples,
@@ -132,6 +140,11 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
             episode_hparams=episode_hparams,
             separated_query_support=separated_query_support,
         )
+        self.datamodule = datamodule
+        label_similarity_matrix = self.get_label_similarity_matrix(similarity_matrix_path)
+        self.label_similarity_dict = self.matrix_to_similarity_dict(label_similarity_matrix)
+        self.total_steps = 5000
+        self.curriculum_learning = False
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -151,6 +164,81 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
     def __getitem__(self, index) -> T_co:
         raise NotImplementedError
 
+    def sample_labels(self):
+
+        if not self.curriculum_learning:
+            return super().sample_labels()
+
+        current_step = self.datamodule.trainer.global_step
+
+        first_label = np.random.choice(self.stage_labels, size=1)
+        sampled_labels = [first_label.tolist()[0]]
+
+        for i in range(self.episode_hparams.num_classes_per_episode - 1):
+
+            remaining_labels = set(self.stage_labels).difference(sampled_labels)
+            remaining_labels_array = np.array(sorted(list(remaining_labels)))
+
+            label_probabilities = self.get_label_probabilities(sampled_labels, remaining_labels, t=current_step)
+
+            label = np.random.choice(remaining_labels_array, size=1, p=label_probabilities)
+
+            sampled_labels.append(label[0])
+
+        return sorted(sampled_labels)
+
+    def get_label_similarity_matrix(self, similarity_matrix_path):
+        # TODO: implement load from file
+        return torch.tensor(
+            [
+                [1, 0.8, 0.7, 0.5, 0.4, 0.3, 0.2],
+                [0.8, 1, 0.8, 0.7, 0.5, 0.4, 0.3],
+                [0.7, 0.9, 1, 0.8, 0.7, 0.6, 0.5],
+                [0.5, 0.3, 0.2, 1, 0.9, 0.8, 0.7],
+                [0.4, 0.6, 0.7, 0.9, 1, 0.9, 0.8],
+                [0.3, 0.5, 0.6, 0.8, 0.9, 1, 0.9],
+                [0.2, 0.4, 0.5, 0.7, 0.8, 0.9, 1],
+            ]
+        )
+
+    def matrix_to_similarity_dict(self, label_similarity_matrix):
+        label_similarity_dict = {}
+
+        for ind, stage_label in enumerate(self.stage_labels):
+            label_similarity_dict[stage_label] = {
+                self.stage_labels[value_ind]: value
+                for value_ind, value in enumerate(label_similarity_matrix[ind])
+                if ind != value_ind
+            }
+
+        return label_similarity_dict
+
+    def get_label_probabilities(self, sampled_labels, remaining_labels, t):
+
+        label_weights = {}
+
+        for label in remaining_labels:
+            similarities_label_and_sampled = [
+                sim for lbl, sim in self.label_similarity_dict[label].items() if lbl in sampled_labels
+            ]
+            similarity_with_sampled = sum(similarities_label_and_sampled)
+
+            label_weight = self.weight_label(similarity_with_sampled, num_steps=t)
+
+            label_weights[label] = label_weight
+
+        norm_factor = sum(math.exp(j) for j in label_weights.values())
+        label_probabilities = {k: math.exp(v) / norm_factor for k, v in label_weights.items()}
+        label_probabilities_array = sorted([(k, v) for k, v in label_probabilities.items()], key=lambda t: t[0])
+        label_probabilities_array = np.array([v for k, v in label_probabilities_array])
+
+        return label_probabilities_array
+
+    def weight_label(self, similarity_with_sampled, num_steps):
+        t = min(num_steps / self.total_steps, 1)
+
+        return (1 - t) * (1 - similarity_with_sampled) + t * similarity_with_sampled
+
 
 class MapEpisodicDataset(Dataset, EpisodicDataset):
     def __init__(
@@ -162,7 +250,6 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
         episode_hparams: EpisodeHParams,
         separated_query_support: bool,
     ):
-        """ """
         super().__init__(
             num_episodes=num_episodes,
             samples=samples,

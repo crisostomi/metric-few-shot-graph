@@ -315,6 +315,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 stage_labels=self.base_labels,
                 episode_hparams=self.train_episode_hparams,
                 separated_query_support=self.separated_query_support,
+                datamodule=self,
             )
 
             self.val_datasets = [
