@@ -40,6 +40,15 @@ pytest -v
 ```
 
 
+### Download data
+
+Download the versioned datasets:
+```bash
+dvc pull  # Login with your @di email when prompted
+dvc checkout
+```
+
+
 ### Update the dependencies
 
 Re-install the project in edit mode:
