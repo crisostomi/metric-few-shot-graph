@@ -5,6 +5,9 @@ storage
 # ignore the _version.py file
 _version.py
 
+# vscode
+.vscode
+
 # .gitignore defaults for python and pycharm
 .idea
 

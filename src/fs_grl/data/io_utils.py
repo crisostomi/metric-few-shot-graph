@@ -1,4 +1,5 @@
 import os
+import pickle
 from typing import Dict, List
 
 import networkx as nx
@@ -255,6 +256,73 @@ def get_label_dict(graph_list) -> Dict:
             label_dict[label] = len(label_dict)
 
     return label_dict
+
+
+def load_pickle_data(data_dir, dataset_name):
+
+    node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
+    base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
+    novel_set = load_pickle(os.path.join(data_dir, dataset_name + "_novel.pickle"))
+    val_set = load_pickle(os.path.join(data_dir, dataset_name + "_val_set.pickle"))
+
+    classes_split = {
+        "base": sorted(list(base_set["label2graphs"].keys())),
+        "val": sorted(list(val_set["label2graphs"].keys())),
+        "novel": sorted(list(novel_set["label2graphs"].keys())),
+    }
+
+    data_list = graph_dict_to_data_list(base_set, node_attrs)
+    data_list += graph_dict_to_data_list(val_set, node_attrs)
+    data_list += graph_dict_to_data_list(novel_set, node_attrs)
+    assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
+
+    return data_list, classes_split
+
+
+def graph_dict_to_data_list(graph_set, node_attrs):
+    data_list = []
+
+    for cls, graph_indices in graph_set["label2graphs"].items():
+        for graph_idx in graph_indices:
+            nodes_global_to_local_map = {
+                global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
+            }
+            edge_indices = torch.tensor(graph_set["graph2edges"][graph_idx], dtype=torch.long)
+            edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
+
+            num_nodes = len(nodes_global_to_local_map)
+            edge_index = edge_indices.t().contiguous()
+            node_features = get_node_features(graph_set=graph_set, node_attrs=node_attrs, graph_idx=graph_idx)
+            assert node_features.size(0) == num_nodes
+
+            data = Data(
+                x=node_features,
+                edge_index=edge_index,
+                num_nodes=num_nodes,
+                y=torch.tensor(cls, dtype=torch.long),
+            )
+
+            data_list.append(data)
+
+    return data_list
+
+
+def get_node_features(graph_set, node_attrs, graph_idx):
+    node_features = []
+
+    for node in graph_set["graph2nodes"][graph_idx]:
+        attr = torch.tensor(node_attrs[node], dtype=torch.float)
+        if len(attr.size()) == 0:
+            attr = attr.unsqueeze(0)
+        node_features.append(attr)
+
+    return torch.stack(node_features)
+
+
+def load_pickle(file_name):
+    with open(file_name, "rb") as f:
+        data = pickle.load(f)
+        return data
 
 
 def load_query_support_idxs(path):
