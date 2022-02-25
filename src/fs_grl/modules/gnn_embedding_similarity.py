@@ -22,6 +22,8 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
             feature_dim=self.feature_dim,
         )
 
+        self.compute_global_prototypes = False
+
     def embed_supports(self, supports: Batch):
         """
         :param supports: Batch containing BxNxK support graphs as a single large graph

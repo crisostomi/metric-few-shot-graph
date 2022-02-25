@@ -15,7 +15,13 @@ from torch_geometric.data import Batch, Data
 
 from nn_core.common import PROJECT_ROOT
 
-from fs_grl.data.dataset import EpisodicDataLoader, IterableEpisodicDataset, MapEpisodicDataset, TransferSourceDataset
+from fs_grl.data.dataset import (
+    CurriculumIterableEpisodicDataset,
+    EpisodicDataLoader,
+    IterableEpisodicDataset,
+    MapEpisodicDataset,
+    VanillaGraphDataset,
+)
 from fs_grl.data.episode import EpisodeHParams
 from fs_grl.data.io_utils import load_data, load_query_support_idxs
 from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed, random_split_sequence
@@ -158,6 +164,8 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
         )
 
+        self.label_to_class_dict: Dict[int, str] = {v: k for k, v in self.class_to_label_dict.items()}
+
         self.print_stats()
 
         self.labels_split = self.get_labels_split()
@@ -274,6 +282,9 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         num_train_episodes,
         num_test_episodes,
         separated_query_support,
+        curriculum_learning,
+        prototypes_path: str = "",
+        max_difficult_step: int = 0,
         **kwargs,
     ):
 
@@ -295,6 +306,9 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         )
         self.train_episode_hparams = instantiate(train_episode_hparams)
         self.val_episode_hparams = instantiate(val_episode_hparams)
+        self.curriculum_learning = curriculum_learning
+        self.prototypes_path = prototypes_path
+        self.max_difficult_step = max_difficult_step
 
     def setup(self, stage: Optional[str] = None):
 
@@ -308,15 +322,24 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             if self.separated_query_support:
                 base_samples_train = self.split_query_support(base_samples_train)
 
-            self.train_dataset = IterableEpisodicDataset(
-                samples=base_samples_train,
-                num_episodes=self.num_train_episodes,
-                class_to_label_dict=self.class_to_label_dict,
-                stage_labels=self.base_labels,
-                episode_hparams=self.train_episode_hparams,
-                separated_query_support=self.separated_query_support,
-                datamodule=self,
-            )
+            train_dataset_params = {
+                "samples": base_samples_train,
+                "num_episodes": self.num_train_episodes,
+                "class_to_label_dict": self.class_to_label_dict,
+                "stage_labels": self.base_labels,
+                "episode_hparams": self.train_episode_hparams,
+                "separated_query_support": self.separated_query_support,
+            }
+
+            if self.curriculum_learning:
+                self.train_dataset = CurriculumIterableEpisodicDataset(
+                    **train_dataset_params,
+                    datamodule=self,
+                    prototypes_path=self.prototypes_path,
+                    max_difficult_step=self.max_difficult_step,
+                )
+            else:
+                self.train_dataset = IterableEpisodicDataset(**train_dataset_params)
 
             self.val_datasets = [
                 MapEpisodicDataset(
@@ -428,12 +451,12 @@ class GraphTransferDataModule(GraphFewShotDataModule):
 
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
 
-            self.train_dataset = TransferSourceDataset(
+            self.train_dataset = VanillaGraphDataset(
                 samples=base_train_samples,
             )
 
             self.val_datasets = [
-                TransferSourceDataset(
+                VanillaGraphDataset(
                     samples=base_val_samples,
                 )
             ]
