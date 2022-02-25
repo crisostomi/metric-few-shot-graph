@@ -23,7 +23,7 @@ from fs_grl.data.dataset import (
     VanillaGraphDataset,
 )
 from fs_grl.data.episode import EpisodeHParams
-from fs_grl.data.io_utils import load_data, load_query_support_idxs
+from fs_grl.data.io_utils import load_data, load_pickle_data, load_query_support_idxs
 from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed, random_split_sequence
 
 pylogger = logging.getLogger(__name__)
@@ -157,19 +157,33 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.val_datasets: Optional[Sequence[Dataset]] = None
         self.test_datasets: Optional[Sequence[Dataset]] = None
 
-        self.classes_split = self.get_classes_split()
-        self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
+        if self.dataset_name in {"TRIANGLES", "ENZYMES", "Letter_high", "Reddit"}:
+            # handle txt data
+            self.classes_split = self.get_classes_split()
+            self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
+            self.data_list, self.class_to_label_dict = load_data(
+                self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
+            )
 
-        self.data_list, self.class_to_label_dict = load_data(
-            self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
-        )
+            self.labels_split = self.get_labels_split()
+
+        elif self.dataset_name in {"COIL-DEL", "R52"}:
+            # handle pickle data
+            self.data_list, self.classes_split = load_pickle_data(
+                data_dir=self.data_dir, dataset_name=self.dataset_name
+            )
+            self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
+            self.labels_split = self.classes_split
+
+        else:
+            raise NotImplementedError
 
         self.label_to_class_dict: Dict[int, str] = {v: k for k, v in self.class_to_label_dict.items()}
 
         self.print_stats()
 
-        self.labels_split = self.get_labels_split()
         self.base_labels, self.novel_labels = self.labels_split["base"], self.labels_split["novel"]
+        self.val_labels = self.labels_split["val"] if "val" in self.labels_split.keys() else self.base_labels
 
         self.data_list_by_label = get_label_to_samples_map(self.data_list)
 
@@ -257,7 +271,15 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         ]
         novel_samples = flatten(novel_samples)
 
-        return {"base": base_samples, "novel": novel_samples}
+        if "val" in self.labels_split.keys():
+            val_samples: List[Data] = [
+                samples for key, samples in self.data_list_by_label.items() if key in self.val_labels
+            ]
+            val_samples = flatten(val_samples)
+
+            return {"base": base_samples, "val": val_samples, "novel": novel_samples}
+        else:
+            return {"base": base_samples, "novel": novel_samples}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(" f"{self.num_workers=}, " f"{self.batch_size=})"
@@ -317,7 +339,10 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             split_samples = self.split_base_novel_samples()
             base_samples = split_samples["base"]
 
-            base_samples_train, base_samples_val = random_split_bucketed(base_samples, self.train_ratio)
+            if "val" in split_samples.keys():
+                base_samples_train, samples_val = base_samples, split_samples["val"]
+            else:
+                base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
 
             if self.separated_query_support:
                 base_samples_train = self.split_query_support(base_samples_train)
@@ -343,9 +368,9 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
             self.val_datasets = [
                 MapEpisodicDataset(
-                    samples=base_samples_val,
+                    samples=samples_val,
                     num_episodes=self.num_test_episodes,
-                    stage_labels=self.base_labels,
+                    stage_labels=self.val_labels,
                     class_to_label_dict=self.class_to_label_dict,
                     episode_hparams=self.val_episode_hparams,
                     separated_query_support=False,
