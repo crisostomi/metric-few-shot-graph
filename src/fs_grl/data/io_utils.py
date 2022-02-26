@@ -17,21 +17,22 @@ class Node:
         self.attrs = attrs
 
 
-def load_data(dir_path, dataset_name, attr_to_consider):
+def load_data(dir_path, dataset_name, feature_params):
     """
     Loads a TU graph dataset.
 
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
-    :param attr_to_consider: whether to consider node tags, node degree or both
+    :param feature_params: params regarding data features
     :return:
     """
+
     graph_list = load_graph_list(dir_path, dataset_name)
 
     class_to_label_dict = get_label_dict(graph_list)
-    data_list = to_data_list(graph_list, class_to_label_dict)
+    data_list = to_data_list(graph_list, class_to_label_dict, feature_params)
 
-    set_node_features(data_list, attr_to_consider=attr_to_consider)
+    set_node_features(data_list, feature_params=feature_params)
 
     return data_list, class_to_label_dict
 
@@ -59,7 +60,7 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict) -> List[Data]:
+def to_data_list(graph_list, class_to_label_dict, feature_params) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -80,6 +81,7 @@ def to_data_list(graph_list, class_to_label_dict) -> List[Data]:
             y=label,
             degrees=get_degree_tensor_from_nx(G),
             tags=get_tag_tensor_from_nx(G),
+            num_cycles=get_num_cycles_from_nx(G, feature_params["max_considered_cycle_len"]),
         )
 
         data_list.append(data)
@@ -171,34 +173,69 @@ def get_tag_tensor_from_nx(G: nx.Graph) -> Tensor:
     return torch.tensor(tags_sorted_by_node)
 
 
-def set_node_features(data_list: List[Data], attr_to_consider):
+def get_num_cycles_from_nx(G: nx.Graph, max_considered_cycle_len) -> Tensor:
+
+    A = torch.Tensor(nx.adjacency_matrix(G).todense())
+    A_k = torch.clone(A)
+
+    num_cycles = []
+    for k in range(max_considered_cycle_len):
+        A_k = A_k.t() @ A
+        num_cycles_len_k = A_k.diagonal()
+
+        num_cycles.append(torch.tensor(num_cycles_len_k))
+
+    return torch.stack(num_cycles, dim=0)
+
+
+def set_node_features(data_list: List[Data], feature_params: Dict):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     In place function
 
     :param data_list: list of preprocessed graphs as PyG Data objects
-    :param attr_to_consider: tags, degree or both
+    :param feature_params:
 
     """
-    assert attr_to_consider in {"tag", "degree", "both"}
 
-    one_hot_tags, one_hot_degrees = None, None
+    # contains for each graph G its node features, where each feature is a vector of length N_G
+    all_node_features = []
 
-    if attr_to_consider in {"tag", "both"}:
+    if "tag" in feature_params["features_to_consider"]:
         all_tags = torch.cat([data.tags for data in data_list], 0)
         one_hot_tags = get_one_hot_attrs(all_tags, data_list)
+        all_node_features = initialize_or_concatenate(all_node_features, one_hot_tags)
 
-    if attr_to_consider in {"degree", "both"}:
+    if "degree" in feature_params["features_to_consider"]:
         all_degrees = torch.cat([data.degrees for data in data_list], 0)
         one_hot_degrees = get_one_hot_attrs(all_degrees, data_list)
+        all_node_features = initialize_or_concatenate(all_node_features, one_hot_degrees)
 
-    if attr_to_consider == "both":
-        all_node_features = [torch.cat((one_hot_tags[i], one_hot_degrees[i]), dim=1) for i in range(len(data_list))]
-    else:
-        all_node_features = one_hot_tags if one_hot_tags else one_hot_degrees
+    if "num_cycles" in feature_params["features_to_consider"]:
+        for k in range(1, feature_params["max_considered_cycle_len"]):
+            num_cycles = [data.num_cycles[k] for data in data_list]
+            all_node_features = initialize_or_concatenate(all_node_features, num_cycles)
 
     for data, node_features in zip(data_list, all_node_features):
+        assert data.num_nodes == node_features.shape[0]
         data["x"] = node_features
+        data["degrees"] = None
+        data["tags"] = None
+        data["num_cycles"] = None
+
+
+def initialize_or_concatenate(all_node_features, feature_to_add):
+
+    if len(all_node_features) == 0:
+        return feature_to_add
+
+    num_graphs = len(all_node_features)
+
+    new_all_node_features = [
+        torch.cat((all_node_features[i], feature_to_add[i].unsqueeze(1)), dim=1) for i in range(num_graphs)
+    ]
+
+    return new_all_node_features
 
 
 def get_one_hot_attrs(attrs, data_list):
@@ -258,7 +295,7 @@ def get_label_dict(graph_list) -> Dict:
     return label_dict
 
 
-def load_pickle_data(data_dir, dataset_name):
+def load_pickle_data(data_dir, dataset_name, feature_params):
 
     node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
     base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
@@ -271,19 +308,21 @@ def load_pickle_data(data_dir, dataset_name):
         "novel": sorted(list(novel_set["label2graphs"].keys())),
     }
 
-    data_list = graph_dict_to_data_list(base_set, node_attrs)
-    data_list += graph_dict_to_data_list(val_set, node_attrs)
-    data_list += graph_dict_to_data_list(novel_set, node_attrs)
+    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params)
+    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params)
+    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params)
     assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
 
     return data_list, classes_split
 
 
-def graph_dict_to_data_list(graph_set, node_attrs):
+def graph_dict_to_data_list(graph_set, node_attrs, feature_params):
     data_list = []
 
     for cls, graph_indices in graph_set["label2graphs"].items():
+
         for graph_idx in graph_indices:
+
             nodes_global_to_local_map = {
                 global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
             }
@@ -292,8 +331,17 @@ def graph_dict_to_data_list(graph_set, node_attrs):
 
             num_nodes = len(nodes_global_to_local_map)
             edge_index = edge_indices.t().contiguous()
+
+            G = create_networkx_graph(num_nodes, edge_indices)
+
             node_features = get_node_features(graph_set=graph_set, node_attrs=node_attrs, graph_idx=graph_idx)
             assert node_features.size(0) == num_nodes
+
+            if "num_cycles" in feature_params["features_to_consider"]:
+                num_cycles = get_num_cycles_from_nx(
+                    G, max_considered_cycle_len=feature_params["max_considered_cycle_len"]
+                )
+                node_features = torch.cat((node_features, num_cycles.t()), dim=1)
 
             data = Data(
                 x=node_features,
@@ -305,6 +353,16 @@ def graph_dict_to_data_list(graph_set, node_attrs):
             data_list.append(data)
 
     return data_list
+
+
+def create_networkx_graph(num_nodes, edge_indices):
+    G = nx.Graph()
+    G.add_nodes_from(range(num_nodes))
+    for edge in edge_indices:
+        u, v = edge[0].item(), edge[1].item()
+        G.add_edge(u, v)
+
+    return G
 
 
 def get_node_features(graph_set, node_attrs, graph_idx):

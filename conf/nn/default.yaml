@@ -14,31 +14,35 @@ defaults:
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
-  dataset_name: TRIANGLES # TRIANGLES, Letter_high, ENZYMES, Reddit
-  data_features_to_consider: degree
+  dataset_name: R52 # TRIANGLES, Letter_high, ENZYMES, Reddit
+  feature_params:
+    features_to_consider:
+      - degree
+      - num_cycles
+    max_considered_cycle_len: 4
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
-  curriculum_learning: true
-  max_difficult_step: 2000
+  curriculum_learning: false
+  max_difficult_step: 10000
 
   train_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 15
-    num_classes_per_episode: 3
+    num_queries_per_class: 13
+    num_classes_per_episode: 4
     num_supports_per_class: 10
 
   val_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 5
-    num_classes_per_episode: 3
-    num_supports_per_class: 5
+    num_queries_per_class: 13
+    num_classes_per_episode: 4
+    num_supports_per_class: 10
 
   test_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 15
-    num_classes_per_episode: 3
+    num_queries_per_class: 13
+    num_classes_per_episode: 2
     num_supports_per_class: 10
 
   num_train_episodes: 2000

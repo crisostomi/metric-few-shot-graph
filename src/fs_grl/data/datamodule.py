@@ -96,7 +96,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
     def __init__(
         self,
         dataset_name,
-        data_features_to_consider,
+        feature_params: Dict,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -157,12 +157,12 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.val_datasets: Optional[Sequence[Dataset]] = None
         self.test_datasets: Optional[Sequence[Dataset]] = None
 
-        if self.dataset_name in {"TRIANGLES", "ENZYMES", "Letter_high", "Reddit"}:
+        if self.dataset_name in {"TRIANGLES", "ENZYMES", "Letter_high", "Reddit", "DUMMY"}:
             # handle txt data
             self.classes_split = self.get_classes_split()
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.data_list, self.class_to_label_dict = load_data(
-                self.data_dir, self.dataset_name, attr_to_consider=data_features_to_consider
+                self.data_dir, self.dataset_name, feature_params=feature_params
             )
 
             self.labels_split = self.get_labels_split()
@@ -170,7 +170,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         elif self.dataset_name in {"COIL-DEL", "R52"}:
             # handle pickle data
             self.data_list, self.classes_split = load_pickle_data(
-                data_dir=self.data_dir, dataset_name=self.dataset_name
+                data_dir=self.data_dir, dataset_name=self.dataset_name, feature_params=feature_params
             )
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
             self.labels_split = self.classes_split
@@ -289,7 +289,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
     def __init__(
         self,
         dataset_name,
-        data_features_to_consider,
+        feature_params: Dict,
         data_dir,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -312,7 +312,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
         super().__init__(
             dataset_name=dataset_name,
-            data_features_to_consider=data_features_to_consider,
+            feature_params=feature_params,
             data_dir=data_dir,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
@@ -432,7 +432,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
     def __init__(
         self,
         dataset_name,
-        data_features_to_consider,
+        feature_params: Dict,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -449,7 +449,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
     ):
         super().__init__(
             dataset_name=dataset_name,
-            data_features_to_consider=data_features_to_consider,
+            feature_params=feature_params,
             data_dir=data_dir,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
