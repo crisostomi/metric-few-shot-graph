@@ -1,0 +1,4 @@
+[core]
+    remote = gladia
+['remote "gladia"']
+    url = gdrive://1CVAhLePo9cANjXdDYHz2ADQsgocKwu8s
