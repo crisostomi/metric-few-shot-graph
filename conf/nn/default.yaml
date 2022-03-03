@@ -9,12 +9,14 @@
 #   - NEVER use both on TRIANGLES, as tags are the same as degree, other datasets must still be tried
 
 defaults:
-  - model/gnn_embedding_cosine
+  - _self_
+  - model: gnn_embedding_cosine
+  - data: triangles
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
-  dataset_name: R52 # TRIANGLES, Letter_high, ENZYMES, Reddit
+  dataset_name: ???
   feature_params:
     features_to_consider:
       - degree
