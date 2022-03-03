@@ -15,37 +15,45 @@ pylogger = logging.getLogger(__name__)
 
 
 class TSNEPlot(Callback):
-    def __init__(self, num_samples) -> None:
+    def __init__(self, novel_samples, base_samples) -> None:
         super().__init__()
-        self.num_samples = num_samples
+        self.novel_samples = novel_samples
+        self.base_samples = base_samples
 
     def on_test_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        dataset = trainer.datamodule.split_base_novel_samples()["novel"]
-        dataset = self.sample_examples_tsne(dataset)
+        split_base_novel_samples = trainer.datamodule.split_base_novel_samples()
+        base_dataset, novel_dataset = split_base_novel_samples["base"], split_base_novel_samples["novel"]
+        novel_dataset = self.sample_examples_tsne(novel_dataset, self.novel_samples)
+        base_dataset = self.sample_examples_tsne(base_dataset, self.base_samples)
 
-        dataloader = DataLoader(dataset)
+        base_novel_dataset = base_dataset + novel_dataset
+
+        dataloader = DataLoader(base_novel_dataset)
         embedder = pl_module.model.embedder
+        embedder.eval()
 
-        queries_embeddings = []
+        embeddings = []
         classes = []
         for batch in dataloader:
             batch.to(pl_module.device)
-            embedded_queries = embedder(batch)
+            embedded_sample = embedder(batch)
 
-            queries_embeddings.append(embedded_queries.cpu())
+            embeddings.append(embedded_sample.cpu())
             classes.append(batch.y.cpu())
 
-        queries_embeddings = torch.cat(queries_embeddings, dim=0)
+        embeddings = torch.cat(embeddings, dim=0)
         classes = torch.cat(classes, dim=0)
-        assert queries_embeddings.size(0) == classes.size(0)
+        assert embeddings.size(0) == classes.size(0)
 
-        tsne_results = self.compute_tsne(embeddings=queries_embeddings)
-        self.plot_and_log_tsne(tsne_results=tsne_results, labels=classes, trainer=trainer)
+        tsne_results = self.compute_tsne(embeddings=embeddings)
+        plot = self.tsne_plot(tsne_results=tsne_results, labels=classes)
 
-    def sample_examples_tsne(self, dataset):
+        trainer.logger.experiment.log({"T-SNE": plot})
+
+    def sample_examples_tsne(self, dataset, num_samples):
         idxs = np.arange(len(dataset))
         np.random.shuffle(idxs)
-        dataset = [dataset[idx] for idx in idxs[: self.num_samples]]
+        dataset = [dataset[idx] for idx in idxs[:num_samples]]
         return dataset
 
     def compute_tsne(self, embeddings):
@@ -54,18 +62,44 @@ class TSNEPlot(Callback):
 
         return tsne_results
 
-    def plot_and_log_tsne(self, tsne_results, labels, trainer):
+    def tsne_plot(self, tsne_results, labels):
+        tsne_base = tsne_results[: self.base_samples, :]
+        base_labels = labels[: self.base_samples]
+
+        tsne_novel = tsne_results[-self.novel_samples :, :]
+        novel_labels = labels[-self.novel_samples :]
+
+        assert len(tsne_results) == (len(tsne_base) + len(tsne_novel))
+        assert len(labels) == (len(base_labels) + len(novel_labels))
+
+        base_scatter = self.create_scatter_plot(tsne_base, base_labels)
+        novel_scatter = self.create_scatter_plot(tsne_novel, novel_labels, novel=True)
+        data = base_scatter + novel_scatter
+
+        plot = go.Figure(data=data)
+
+        return plot
+
+    def create_scatter_plot(self, tsne_results, labels, novel=False):
         data = []
+        marker_symbol = "circle-open" if novel else "x"
+        legendgroup = "novel" if novel else "base"
+        legendgrouptitle_text = "Novel classes" if novel else "Base classes"
+
         for label in labels.unique():
             indices = torch.where(labels == label)[0]
             data.append(
                 go.Scatter(
-                    x=tsne_results[indices, 0], y=tsne_results[indices, 1], mode="markers", name=f"Class {label+1}"
+                    x=tsne_results[indices, 0],
+                    y=tsne_results[indices, 1],
+                    mode="markers",
+                    marker_symbol=marker_symbol,
+                    name=f"Class {label+1}",
+                    legendgroup=legendgroup,
+                    legendgrouptitle_text=legendgrouptitle_text,
                 )
             )
-        plot = go.Figure(data=data)
-
-        trainer.logger.experiment.log({"T-SNE": plot})
+        return data
 
 
 def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
