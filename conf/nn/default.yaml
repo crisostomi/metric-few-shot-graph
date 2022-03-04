@@ -9,16 +9,18 @@
 #   - NEVER use both on TRIANGLES, as tags are the same as degree, other datasets must still be tried
 
 defaults:
-  - model/gnn_embedding_triplet
+  - _self_
+  - model: gnn_embedding_cosine
+  - data: enzymes
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
-  dataset_name: TRIANGLES # TRIANGLES, Letter_high, ENZYMES, Reddit, R52, COIL-DEL
+  dataset_name: ???
   feature_params:
     features_to_consider:
       - degree
-#      - num_cycles
+      - num_cycles
     max_considered_cycle_len: 3
 
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
@@ -26,7 +28,7 @@ data:
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
   curriculum_learning: false
-  max_difficult_step: 2000
+  max_difficult_step: 10000
 
   train_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams
