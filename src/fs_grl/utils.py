@@ -45,10 +45,15 @@ class TSNEPlot(Callback):
         classes = torch.cat(classes, dim=0)
         assert embeddings.size(0) == classes.size(0)
 
-        tsne_results = self.compute_tsne(embeddings=embeddings)
+        tsne_results = self.compute_tsne(n_components=2, embeddings=embeddings)
         plot = self.tsne_plot(tsne_results=tsne_results, labels=classes)
 
-        trainer.logger.experiment.log({"T-SNE": plot})
+        trainer.logger.experiment.log({"t-SNE": plot})
+
+        tsne3d_results = self.compute_tsne(n_components=3, embeddings=embeddings)
+        plot3d = self.tsne_plot(tsne_results=tsne3d_results, labels=classes)
+
+        trainer.logger.experiment.log({"3d t-SNE": plot3d})
 
     def sample_examples_tsne(self, dataset, num_samples):
         idxs = np.arange(len(dataset))
@@ -56,8 +61,8 @@ class TSNEPlot(Callback):
         dataset = [dataset[idx] for idx in idxs[:num_samples]]
         return dataset
 
-    def compute_tsne(self, embeddings):
-        tsne = TSNE(n_iter=1000, verbose=1)
+    def compute_tsne(self, n_components, embeddings):
+        tsne = TSNE(n_components=n_components, n_iter=1000, verbose=1)
         tsne_results = tsne.fit_transform(embeddings)
 
         return tsne_results
@@ -88,8 +93,8 @@ class TSNEPlot(Callback):
 
         for label in labels.unique():
             indices = torch.where(labels == label)[0]
-            data.append(
-                go.Scatter(
+            if tsne_results.shape[1] == 2:
+                scatter = go.Scatter(
                     x=tsne_results[indices, 0],
                     y=tsne_results[indices, 1],
                     mode="markers",
@@ -98,7 +103,20 @@ class TSNEPlot(Callback):
                     legendgroup=legendgroup,
                     legendgrouptitle_text=legendgrouptitle_text,
                 )
-            )
+            elif tsne_results.shape[1] == 3:
+                scatter = go.Scatter3d(
+                    x=tsne_results[indices, 0],
+                    y=tsne_results[indices, 1],
+                    z=tsne_results[indices, 2],
+                    mode="markers",
+                    marker_symbol=marker_symbol,
+                    name=f"Class {label+1}",
+                    legendgroup=legendgroup,
+                    legendgrouptitle_text=legendgrouptitle_text,
+                )
+            else:
+                raise NotImplementedError
+            data.append(scatter)
         return data
 
 
