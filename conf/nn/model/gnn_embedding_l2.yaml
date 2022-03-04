@@ -18,3 +18,5 @@ model:
     hidden_dim: 64
     num_convs: 2
     dropout_rate: 0
+    pooling: sum
+    do_preprocess: false

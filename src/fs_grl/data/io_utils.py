@@ -29,7 +29,7 @@ def load_data(dir_path, dataset_name, feature_params):
 
     graph_list = load_graph_list(dir_path, dataset_name)
 
-    class_to_label_dict = get_label_dict(graph_list)
+    class_to_label_dict = get_classes_to_label_dict(graph_list)
     data_list = to_data_list(graph_list, class_to_label_dict, feature_params)
 
     set_node_features(data_list, feature_params=feature_params)
@@ -276,23 +276,20 @@ def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
     return edges_tensor.t().contiguous()
 
 
-def get_label_dict(graph_list) -> Dict:
+def get_classes_to_label_dict(graph_list) -> Dict:
     """
-    Obtains all the labels present in the data and maps them to progressive integers.
+    Obtains all the classes present in the data and maps them to progressive integers.
 
     :param graph_list: list of networkx graphs
 
     :return: map that maps each string class to an integer
     """
-    label_dict = {}
 
-    for graph in graph_list:
-        label = graph.graph["class"]
+    all_classes = {graph.graph["class"] for graph in graph_list}
+    all_classes_sorted = sorted([int(cls) for cls in all_classes])
+    class_to_label_dict = {str(cls): label for label, cls in enumerate(all_classes_sorted)}
 
-        if label not in label_dict:
-            label_dict[label] = len(label_dict)
-
-    return label_dict
+    return class_to_label_dict
 
 
 def load_pickle_data(data_dir, dataset_name, feature_params):
@@ -361,6 +358,7 @@ def create_networkx_graph(num_nodes, edge_indices):
     for edge in edge_indices:
         u, v = edge[0].item(), edge[1].item()
         G.add_edge(u, v)
+        G.add_edge(v, u)
 
     return G
 

@@ -7,7 +7,7 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 100 # 100 for TL
+  max_epochs: 3 # 100 for TL
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
@@ -24,7 +24,7 @@ meta-testing-trainer:
 
 
 restore:
-  ckpt_or_run_path: null
+  ckpt_or_run_path: null #${core.storage_dir}/fs-grl/1zb3h7j6/checkpoints/epoch=47-step=6143.ckpt.zip
   mode: null # null, continue, hotstart
 
 monitor:
@@ -71,7 +71,7 @@ distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20
 
-  - _target_: fs_grl.utils.TSNEPlot
+  - _target_: fs_grl.callbacks.TSNEPlot
     num_samples: 400
 
 meta-testing-callbacks:

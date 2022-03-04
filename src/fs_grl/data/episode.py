@@ -49,6 +49,12 @@ class Episode:
         self.global_labels = global_labels
 
         self.episode_hparams = episode_hparams
+        self.num_queries_per_episode = (
+            self.episode_hparams.num_queries_per_class * self.episode_hparams.num_classes_per_episode
+        )
+        self.num_supports_per_episode = (
+            self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
+        )
 
 
 class EpisodeBatch(Episode):

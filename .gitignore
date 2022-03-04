@@ -223,3 +223,6 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 useful_code
+/ssh-info.txt
+/ssh-vars.sh
+/exclude_rsync.txt

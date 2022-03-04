@@ -5,10 +5,17 @@ optimizer:
 
 model:
   _target_: fs_grl.modules.gnn_embedding_mlp.GNNEmbeddingMLP
-  num_mlp_layers: 2
   feature_dim: ???
   num_classes: ???
-  mlp_non_linearity: tanh
+  margin: 0.5
+
+  similarity_network:
+    _target_: fs_grl.modules.mlp.MLP
+    num_layers: 2
+    input_dim: ???
+    output_dim: 1
+    hidden_dim: ???
+    non_linearity: tanh
 
   embedder:
     _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
@@ -18,3 +25,5 @@ model:
     hidden_dim: 64
     num_convs: 2
     dropout_rate: 0
+    do_preprocess: false
+    pooling: sum

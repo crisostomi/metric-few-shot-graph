@@ -14,7 +14,9 @@ from nn_core.model_logging import NNLogger
 from nn_core.serialization import NNCheckpointIO
 
 import fs_grl  # noqa
-from fs_grl.utils import build_callbacks, handle_fast_dev_run
+from fs_grl.callbacks import build_callbacks
+from fs_grl.data.datamodule import GraphFewShotDataModule
+from fs_grl.utils import handle_fast_dev_run
 
 # Force the execution of __init__.py if this file is executed directly.
 
@@ -38,12 +40,14 @@ def run(cfg: DictConfig) -> str:
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 
     pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
 
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     pylogger.info(f"Instantiating <{cfg.nn.model['_target_']}>")
-    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model, _recursive_=False, metadata=metadata)
+    model: pl.LightningModule = hydra.utils.instantiate(
+        cfg.nn.model, _recursive_=False, train_data_list_by_label=datamodule.data_list_by_base_label, metadata=metadata
+    )
 
     template_core: NNTemplateCore = NNTemplateCore(
         restore_cfg=cfg.train.get("restore", None),

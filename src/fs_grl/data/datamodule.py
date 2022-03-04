@@ -185,7 +185,15 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.base_labels, self.novel_labels = self.labels_split["base"], self.labels_split["novel"]
         self.val_labels = self.labels_split["val"] if "val" in self.labels_split.keys() else self.base_labels
 
+        pylogger.info(f"Class to dict mapping: {self.class_to_label_dict}")
+        pylogger.info(f"Base labels: {self.base_labels}, novel labels: {self.novel_labels}")
+        pylogger.info(f"Base classes: {self.base_classes}, novel classes: {self.novel_classes}")
+
         self.data_list_by_label = get_label_to_samples_map(self.data_list)
+
+        self.data_list_by_base_label = {
+            label: data_list for label, data_list in self.data_list_by_label.items() if label in self.base_labels
+        }
 
         self.train_ratio = train_ratio
 

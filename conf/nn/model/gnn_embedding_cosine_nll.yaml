@@ -1,20 +1,21 @@
-_target_: fs_grl.pl_modules.protonet.GraphProtoNet
+_target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
   _target_: torch.optim.Adam
   lr: 5e-5
 
 model:
-  _target_: fs_grl.modules.gnn_embedding_cosine.GNNEmbeddingCosine
+  _target_: fs_grl.modules.gnn_embedding_cosine_nll.GNNEmbeddingCosineNLL
   feature_dim: ???
   num_classes: ???
-  margin: 0.5
 
   embedder:
     _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
     feature_dim: ???
     num_mlp_layers: 2
-    embedding_dim: 48
-    hidden_dim: 48
+    embedding_dim: 32
+    hidden_dim: 32
     num_convs: 2
     dropout_rate: 0.5
+    pooling: sum # sum, GMT
+    do_preprocess: false

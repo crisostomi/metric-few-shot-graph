@@ -63,14 +63,10 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         device = embedded_supports.device
         num_episodes = batch.num_episodes
 
-        num_supports_per_episode = (
-            batch.episode_hparams.num_supports_per_class * batch.episode_hparams.num_classes_per_episode
-        )
-
         # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
-        embedded_supports_per_episode = embedded_supports.split(tuple([num_supports_per_episode] * num_episodes))
+        embedded_supports_per_episode = embedded_supports.split(tuple([batch.num_supports_per_episode] * num_episodes))
         # sequence of labels for each episode, each has shape (num_supports_per_episode)
-        labels_per_episode = batch.supports.y.split(tuple([num_supports_per_episode] * num_episodes))
+        labels_per_episode = batch.supports.y.split(tuple([batch.num_supports_per_episode] * num_episodes))
         classes_per_episode = batch.global_labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
 
         all_class_prototypes = []
@@ -114,31 +110,39 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
 
         for episode in range(num_episodes):
 
-            sorted_class_prototypes = [
-                (global_class, prototype) for global_class, prototype in class_prototypes[episode].items()
-            ]
-            sorted_class_prototypes.sort(key=lambda tup: tup[0])
-            sorted_class_prototypes_tensors = [tup[1] for tup in sorted_class_prototypes]
+            class_prototype_matrix = self.get_prototype_matrix_from_dict(class_prototypes[episode])
 
-            # shape (num_classes_episode, hidden_dim)
-            class_prototype_matrix = torch.stack(sorted_class_prototypes_tensors)
-
-            # shape (num_queries_episode, hidden_dim)
-            episode_embedded_queries = embedded_queries_per_episode[episode]
-
-            repeated_embedded_queries = episode_embedded_queries.repeat_interleave(
-                batch.episode_hparams.num_classes_per_episode, dim=0
+            aligned_queries, aligned_prototypes = self.align_queries_prototypes_pairs(
+                embedded_queries_per_episode[episode], class_prototype_matrix, batch
             )
 
-            repeated_class_prototypes = class_prototype_matrix.repeat((num_queries_per_episode, 1))
-
-            batch_queries.append(repeated_embedded_queries)
-            batch_prototypes.append(repeated_class_prototypes)
+            batch_queries.append(aligned_queries)
+            batch_prototypes.append(aligned_prototypes)
 
         return {"queries": torch.cat(batch_queries, dim=0), "prototypes": torch.cat(batch_prototypes, dim=0)}
 
+    def align_queries_prototypes_pairs(self, queries, prototypes_matrix, batch):
+        # shape (num_queries_episode, hidden_dim)
+
+        aligned_embedded_queries = queries.repeat_interleave(batch.episode_hparams.num_classes_per_episode, dim=0)
+
+        aligned_prototypes = prototypes_matrix.repeat((batch.num_queries_per_episode, 1))
+
+        return aligned_embedded_queries, aligned_prototypes
+
+    @classmethod
+    def get_prototype_matrix_from_dict(cls, class_prototypes):
+        sorted_class_prototypes = [(global_class, prototype) for global_class, prototype in class_prototypes.items()]
+        sorted_class_prototypes.sort(key=lambda tup: tup[0])
+        sorted_class_prototypes_tensors = [tup[1] for tup in sorted_class_prototypes]
+
+        # shape (num_classes_episode, hidden_dim)
+        class_prototype_matrix = torch.stack(sorted_class_prototypes_tensors)
+
+        return class_prototype_matrix
+
     @abc.abstractmethod
-    def get_similarities(self, queries, prototypes):
+    def get_similarities(self, embedded_queries, class_prototypes, batch):
         raise NotImplementedError
 
     def forward(self, batch: EpisodeBatch):
@@ -158,11 +162,14 @@ class GNNEmbeddingSimilarity(nn.Module, abc.ABC):
         # shape (num_classes_per_episode, hidden_dim)
         class_prototypes = self.get_class_prototypes(embedded_supports, batch)
 
-        # both shape (num_queries_batch*num_classes, hidden_dim)
-        batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
-        batch_queries = batch_queries_prototypes["queries"]
-        batch_prototypes = batch_queries_prototypes["prototypes"]
+        similarities = self.get_similarities(embedded_queries, class_prototypes, batch)
 
-        similarities = self.get_similarities(batch_queries, batch_prototypes)
+        return {
+            "embedded_queries": embedded_queries,
+            "class_prototypes": class_prototypes,
+            "similarities": similarities,
+        }
 
-        return similarities
+    @abc.abstractmethod
+    def compute_loss(self, embedded_queries, class_prototypes, batch: EpisodeBatch, **kwargs):
+        pass

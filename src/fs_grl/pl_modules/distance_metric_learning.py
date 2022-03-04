@@ -12,6 +12,7 @@ from nn_core.model_logging import NNLogger
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.pl_modules.pl_module import MyLightningModule
+from fs_grl.utils import compute_global_prototypes
 
 pylogger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ pylogger = logging.getLogger(__name__)
 class DistanceMetricLearning(MyLightningModule):
     logger: NNLogger
 
-    def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+    def __init__(self, train_data_list_by_label, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
@@ -28,6 +29,7 @@ class DistanceMetricLearning(MyLightningModule):
 
         # classes should be sorted, might add an assert later
         self.classes = list(metadata.classes_to_label_dict.keys())
+        self.label_to_class_dict = {v: k for k, v in metadata.classes_to_label_dict.items()}
 
         self.model = instantiate(
             self.hparams.model,
@@ -54,6 +56,8 @@ class DistanceMetricLearning(MyLightningModule):
         )
         self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
+        self.base_prototypes = {}
+        self.train_data_list_by_label = train_data_list_by_label
         # metrics computed without mapping
         # self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
         # self.val_metrics = nn.ModuleDict({"val/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
@@ -64,18 +68,19 @@ class DistanceMetricLearning(MyLightningModule):
                 between each of the N*Q queries and the N label prototypes
         """
 
-        similarities = self.model(batch)
+        model_out = self.model(batch)
 
-        return similarities
+        return model_out
 
     def step(self, batch, split: str) -> Mapping[str, Any]:
 
-        similarities = self(batch)
+        model_out = self(batch)
 
-        loss = self.model.loss_func(similarities, batch.cosine_targets)
+        loss = self.model.compute_loss(model_out, batch)
+
         self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
 
-        return {"similarities": similarities, "loss": loss}
+        return {"similarities": model_out["similarities"], "loss": loss}
 
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
@@ -89,6 +94,10 @@ class DistanceMetricLearning(MyLightningModule):
             self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
 
         return step_out
+
+    def on_train_end(self) -> None:
+        base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
+        self.base_prototypes = base_prototypes
 
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
