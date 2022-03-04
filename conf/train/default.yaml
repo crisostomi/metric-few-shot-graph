@@ -72,8 +72,7 @@ distance-metric-learning-callbacks:
     refresh_rate: 20
 
   - _target_: fs_grl.callbacks.TSNEPlot
-    base_samples: 1000
-    novel_samples: 400
+    samples_per_class: 60
 
 meta-testing-callbacks:
 
