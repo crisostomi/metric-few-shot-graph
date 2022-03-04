@@ -72,7 +72,8 @@ class TSNEPlot(Callback):
         for _, samples in label_to_samples_map.items():
             idxs = np.arange(len(samples))
             np.random.shuffle(idxs)
-            sampled_data += [samples[idx] for idx in idxs[:num_samples]]
+            upper_bound = min(len(samples), num_samples)
+            sampled_data += [samples[idx] for idx in idxs[:upper_bound]]
         return sampled_data
 
     def compute_tsne(self, n_components, embeddings):
