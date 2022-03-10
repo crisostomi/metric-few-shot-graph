@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: gnn_embedding_cosine
-  - data: r52
+  - data: enzymes
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
