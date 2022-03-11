@@ -10,8 +10,8 @@
 
 defaults:
   - _self_
-  - model: gnn_embedding_cosine
-  - data: enzymes
+  - model: fully_graphical
+  - data: triangles
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -64,6 +64,6 @@ data:
     test: 4
 
   batch_size:
-    train: 16
-    val: 16
-    test: 16
+    train: 1
+    val: 1
+    test: 1

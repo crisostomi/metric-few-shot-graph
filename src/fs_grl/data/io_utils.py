@@ -219,6 +219,7 @@ def set_node_features(data_list: List[Data], feature_params: Dict):
     for data, node_features in zip(data_list, all_node_features):
         assert data.num_nodes == node_features.shape[0]
         data["x"] = node_features
+        data["num_sample_edges"] = data.edge_index.shape[1]
         data["degrees"] = None
         data["tags"] = None
         data["num_cycles"] = None

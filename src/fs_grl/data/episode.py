@@ -98,6 +98,7 @@ class EpisodeBatch(Episode):
         global_labels: List[int] = flatten([episode.global_labels for episode in episode_list])
 
         supports_batch: Batch = Batch.from_data_list(supports)
+
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
 
@@ -119,6 +120,31 @@ class EpisodeBatch(Episode):
             cosine_targets=cosine_targets,
             local_labels=local_labels,
         )
+
+    #
+    # def to_episode_list(self):
+    #
+    #     episodes = []
+    #
+    #     supports_flattened = self.supports.to_data_list()
+    #     queries_flattened = self.queries.to_data_list()
+    #
+    #     supports_by_episodes = [
+    #         supports_flattened[
+    #             i * self.num_supports_per_episode : i * self.num_supports_per_episode + self.num_supports_per_episode
+    #         ]
+    #         for i in range(self.num_episodes)
+    #     ]
+    #
+    #     queries_by_episodes = [
+    #         queries_flattened[
+    #             i * self.num_queries_per_episode : i * self.num_queries_per_episode + self.num_queries_per_episode
+    #         ]
+    #         for i in range(self.num_episodes)
+
+    #     ]
+
+    # TODO: finish
 
     @classmethod
     def get_cosine_targets(cls, episode_list: List[Episode]) -> torch.Tensor:
@@ -158,3 +184,65 @@ class EpisodeBatch(Episode):
                 attr.pin_memory()
 
         return self
+
+    def split_supports_in_episodes(self) -> list:
+        supports_data_list = self.supports.to_data_list()
+
+        supports_by_episodes = [
+            supports_data_list[
+                i * self.num_supports_per_episode : i * self.num_supports_per_episode + self.num_supports_per_episode
+            ]
+            for i in range(self.num_episodes)
+        ]
+
+        supports_by_episodes = [Batch.from_data_list(episode_supports) for episode_supports in supports_by_episodes]
+
+        assert self.supports.num_nodes == sum([supports.num_nodes for supports in supports_by_episodes])
+        return supports_by_episodes
+
+    def split_queries_in_episodes(self):
+        queries_data_list = self.queries.to_data_list()
+
+        queries_by_episodes = [
+            queries_data_list[
+                i * self.num_queries_per_episode : i * self.num_queries_per_episode + self.num_queries_per_episode
+            ]
+            for i in range(self.num_episodes)
+        ]
+
+        queries_by_episodes = [Batch.from_data_list(episode_queries) for episode_queries in queries_by_episodes]
+
+        assert self.queries.num_nodes == sum([queries.num_nodes for queries in queries_by_episodes])
+        return queries_by_episodes
+
+    def split_queries_features_in_episodes(self) -> tuple:
+        return self.queries.x.split(tuple([self.num_queries_per_episode] * self.num_episodes))
+
+    def split_support_features_in_episodes(self) -> List:
+        supports_x_one_by_one = self.supports.x.split(tuple(self.supports.lens))
+
+        supports_x_by_episodes = [
+            torch.cat(
+                supports_x_one_by_one[
+                    i * self.num_supports_per_episode : i * self.num_supports_per_episode
+                    + self.num_supports_per_episode
+                ],
+                dim=0,
+            )
+            for i in range(self.num_episodes)
+        ]
+        return supports_x_by_episodes
+
+    def split_supports_labels_in_episodes(self) -> tuple:
+        return self.supports.y.split(tuple([self.num_supports_per_episode] * self.num_episodes))
+
+    def split_queries_labels_in_episodes(self) -> tuple:
+        return self.queries.y.split(tuple([self.num_queries_per_episode] * self.num_episodes))
+
+    def split_supports_ptr_in_episodes(self) -> tuple:
+        return self.supports.ptr.split(tuple([self.num_supports_per_episode] * self.num_episodes))
+
+    @property
+    def feature_dim(self):
+        assert self.supports.x.shape[-1] == self.queries.x.shape[-1]
+        return self.supports.x.shape[-1]

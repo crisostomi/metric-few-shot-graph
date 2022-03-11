@@ -5,6 +5,7 @@ from random import shuffle
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
+import torch
 from torch_geometric.data import Data
 
 
@@ -70,3 +71,9 @@ def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
     for sample in annotated_samples:
         res.setdefault(sample.y.item(), []).append(sample)
     return res
+
+
+def get_lens_from_batch_assignment(batch_assignment):
+    lens = torch.unique(batch_assignment, return_counts=True)[1]
+
+    return lens
