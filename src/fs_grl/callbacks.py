@@ -11,20 +11,21 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from sklearn.manifold import TSNE
 from torch_geometric.loader import DataLoader
 
+from fs_grl.data.utils import get_label_to_samples_map
+
 pylogger = logging.getLogger(__name__)
 
 
 class TSNEPlot(Callback):
-    def __init__(self, novel_samples, base_samples) -> None:
+    def __init__(self, samples_per_class) -> None:
         super().__init__()
-        self.novel_samples = novel_samples
-        self.base_samples = base_samples
+        self.samples_per_class = samples_per_class
 
     def on_test_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         split_base_novel_samples = trainer.datamodule.split_base_novel_samples()
         base_dataset, novel_dataset = split_base_novel_samples["base"], split_base_novel_samples["novel"]
-        novel_dataset = self.sample_examples_tsne(novel_dataset, self.novel_samples)
-        base_dataset = self.sample_examples_tsne(base_dataset, self.base_samples)
+        base_dataset = self.sample_data_tsne(base_dataset, self.samples_per_class)
+        novel_dataset = self.sample_data_tsne(novel_dataset, self.samples_per_class)
 
         base_novel_dataset = base_dataset + novel_dataset
 
@@ -46,20 +47,34 @@ class TSNEPlot(Callback):
         assert embeddings.size(0) == classes.size(0)
 
         tsne_results = self.compute_tsne(n_components=2, embeddings=embeddings)
-        plot = self.tsne_plot(tsne_results=tsne_results, labels=classes)
+        plot = self.tsne_plot(
+            tsne_results=tsne_results,
+            labels=classes,
+            num_base_samples=len(base_dataset),
+            num_novel_samples=len(novel_dataset),
+        )
 
         trainer.logger.experiment.log({"t-SNE": plot})
 
         tsne3d_results = self.compute_tsne(n_components=3, embeddings=embeddings)
-        plot3d = self.tsne_plot(tsne_results=tsne3d_results, labels=classes)
+        plot3d = self.tsne_plot(
+            tsne_results=tsne3d_results,
+            labels=classes,
+            num_base_samples=len(base_dataset),
+            num_novel_samples=len(novel_dataset),
+        )
 
         trainer.logger.experiment.log({"3d t-SNE": plot3d})
 
-    def sample_examples_tsne(self, dataset, num_samples):
-        idxs = np.arange(len(dataset))
-        np.random.shuffle(idxs)
-        dataset = [dataset[idx] for idx in idxs[:num_samples]]
-        return dataset
+    def sample_data_tsne(self, dataset, num_samples):
+        label_to_samples_map = get_label_to_samples_map(dataset)
+        sampled_data = []
+        for _, samples in label_to_samples_map.items():
+            idxs = np.arange(len(samples))
+            np.random.shuffle(idxs)
+            upper_bound = min(len(samples), num_samples)
+            sampled_data += [samples[idx] for idx in idxs[:upper_bound]]
+        return sampled_data
 
     def compute_tsne(self, n_components, embeddings):
         tsne = TSNE(n_components=n_components, n_iter=1000, verbose=1)
@@ -67,12 +82,12 @@ class TSNEPlot(Callback):
 
         return tsne_results
 
-    def tsne_plot(self, tsne_results, labels):
-        tsne_base = tsne_results[: self.base_samples, :]
-        base_labels = labels[: self.base_samples]
+    def tsne_plot(self, tsne_results, labels, num_base_samples, num_novel_samples):
+        tsne_base = tsne_results[:num_base_samples, :]
+        base_labels = labels[:num_base_samples]
 
-        tsne_novel = tsne_results[-self.novel_samples :, :]
-        novel_labels = labels[-self.novel_samples :]
+        tsne_novel = tsne_results[-num_novel_samples:, :]
+        novel_labels = labels[-num_novel_samples:]
 
         assert len(tsne_results) == (len(tsne_base) + len(tsne_novel))
         assert len(labels) == (len(base_labels) + len(novel_labels))
@@ -98,7 +113,7 @@ class TSNEPlot(Callback):
                     x=tsne_results[indices, 0],
                     y=tsne_results[indices, 1],
                     mode="markers",
-                    marker_symbol=marker_symbol,
+                    marker_symbol=f"{marker_symbol}",
                     name=f"Class {label+1}",
                     legendgroup=legendgroup,
                     legendgrouptitle_text=legendgrouptitle_text,
@@ -110,6 +125,7 @@ class TSNEPlot(Callback):
                     z=tsne_results[indices, 2],
                     mode="markers",
                     marker_symbol=marker_symbol,
+                    marker_size=3 if marker_symbol == "x" else 6,
                     name=f"Class {label+1}",
                     legendgroup=legendgroup,
                     legendgrouptitle_text=legendgrouptitle_text,

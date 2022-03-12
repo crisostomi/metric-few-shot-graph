@@ -172,6 +172,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             self.data_list, self.classes_split = load_pickle_data(
                 data_dir=self.data_dir, dataset_name=self.dataset_name, feature_params=feature_params
             )
+            self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
             self.labels_split = self.classes_split
 
