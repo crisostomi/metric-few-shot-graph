@@ -147,6 +147,11 @@ class EpisodeBatch(Episode):
     # TODO: finish
 
     @classmethod
+    def get_global_to_local_label_mapping(cls, global_labels):
+        # assuming we are in an episode
+        return {glob.item(): local for local, glob in enumerate(sorted(global_labels))}
+
+    @classmethod
     def get_cosine_targets(cls, episode_list: List[Episode]) -> torch.Tensor:
         """
         :param episode_list: list of episodes in the batch

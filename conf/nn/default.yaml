@@ -20,7 +20,7 @@ data:
   feature_params:
     features_to_consider:
       - degree
-      - num_cycles
+#      - num_cycles
     max_considered_cycle_len: 3
 
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
@@ -54,7 +54,7 @@ data:
 
   separated_query_support: false
   query_support_split_path: null
-  train_ratio: 0.9
+  train_ratio: 0.9 #TODO: switch back
 
   gpus: ${train.trainer.gpus}
 
