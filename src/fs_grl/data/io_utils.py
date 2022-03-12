@@ -270,10 +270,12 @@ def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
     :param G: networkx graph
     :return: tensor ~ (2, num_edges) containing all the edges in the graph G
     """
-    # shape (num_edges, 2)
-    edges_tensor = torch.tensor(list(G.edges), dtype=torch.long)
+    # shape (num_edges*2, 2)
+    edges_tensor = torch.tensor(list([(edge[0], edge[1]) for edge in G.edges]), dtype=torch.long)
+    edges_tensor_reverse = torch.tensor(list([(edge[1], edge[0]) for edge in G.edges]), dtype=torch.long)
 
-    return edges_tensor.t().contiguous()
+    edge_index = torch.cat((edges_tensor, edges_tensor_reverse), dim=0)
+    return edge_index.t().contiguous()
 
 
 def get_classes_to_label_dict(graph_list) -> Dict:
