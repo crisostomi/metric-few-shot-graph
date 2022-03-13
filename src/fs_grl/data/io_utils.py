@@ -188,7 +188,7 @@ def get_num_cycles_from_nx(G: nx.Graph, max_considered_cycle_len) -> Tensor:
     return torch.stack(num_cycles, dim=0)
 
 
-def set_node_features(data_list: List[Data], feature_params: Dict):
+def set_node_features(data_list: List[Data], feature_params: Dict, add_aggregator_nodes: bool = False):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     In place function
@@ -218,7 +218,12 @@ def set_node_features(data_list: List[Data], feature_params: Dict):
 
     for data, node_features in zip(data_list, all_node_features):
         assert data.num_nodes == node_features.shape[0]
+        if add_aggregator_nodes:
+            aggregator_node_features = torch.ones_like(node_features[0])
+            node_features = torch.cat((node_features, aggregator_node_features), dim=0)
+            # TODO: check that num nodes is updated
         data["x"] = node_features
+        # TODO: check if this must be updated when adding aggregator edges
         data["num_sample_edges"] = data.edge_index.shape[1]
         data["degrees"] = None
         data["tags"] = None
@@ -265,7 +270,7 @@ def get_one_hot_attrs(attrs, data_list):
     return all_one_hot_attrs
 
 
-def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
+def get_edge_index_from_nx(G: nx.Graph, add_aggregator_edges=False) -> Tensor:
     """
     Extracts edge index from networkx graph
     :param G: networkx graph
@@ -276,6 +281,13 @@ def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
     edges_tensor_reverse = torch.tensor(list([(edge[1], edge[0]) for edge in G.edges]), dtype=torch.long)
 
     edge_index = torch.cat((edges_tensor, edges_tensor_reverse), dim=0)
+
+    # aggregator node is in the last index
+    aggregator_node_index = G.number_of_nodes()
+    if add_aggregator_edges:
+        aggregator_edges = torch.tensor([(node, aggregator_node_index) for node in range(0, aggregator_node_index)])
+        edge_index = torch.cat((edge_index, aggregator_edges), dim=0)
+
     return edge_index.t().contiguous()
 
 

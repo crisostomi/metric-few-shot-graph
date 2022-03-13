@@ -54,7 +54,7 @@ data:
 
   separated_query_support: false
   query_support_split_path: null
-  train_ratio: 0.9 #TODO: switch back
+  train_ratio: 0.9
 
   gpus: ${train.trainer.gpus}
 

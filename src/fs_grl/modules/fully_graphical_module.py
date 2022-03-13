@@ -70,7 +70,9 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         local_labels_by_episode = []
         for episode_global_labels in global_labels_by_episode:
-            episode_global_to_local_mapping = batch.get_global_to_local_label_mapping(episode_global_labels)
+            episode_global_to_local_mapping = batch.get_global_to_local_label_mapping(
+                torch.unique(episode_global_labels)
+            )
             episode_local_labels = torch.tensor(
                 [episode_global_to_local_mapping[y.item()] for y in episode_global_labels]
             ).type_as(batch.supports.edge_index)
@@ -88,13 +90,11 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         """
 
         if self.plot_graphs:
-            self.plot_samples(batch.supports, batch, queries_or_supports="supports")
+            self.plot_samples(batch, queries_or_supports="supports")
             self.plot_batch(batch.supports)
 
-            self.plot_samples(batch.queries, batch, queries_or_supports="queries")
+            self.plot_samples(batch, queries_or_supports="queries")
             self.plot_batch(batch.queries)
-
-        supports_local_labels = self.get_supports_local_labels(batch)
 
         batch.supports.x, batch.supports.lens, batch.supports.ptr = self.get_aggregating_nodes_features(
             batch, queries_or_supports="supports"
@@ -104,9 +104,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         label_to_prototype_node = self.get_label_to_prototype_mapping(batch)
 
-        support_artificial_edge_index = self.get_artificial_edges(
-            batch, label_to_prototype_node, "supports", supports_local_labels
-        )
+        support_artificial_edge_index = self.get_artificial_edges(batch, label_to_prototype_node, "supports")
 
         batch.supports.edge_index = support_artificial_edge_index
 
@@ -119,9 +117,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
             batch, queries_or_supports="queries"
         )
 
-        query_artificial_edge_index = self.get_artificial_edges(
-            batch, label_to_prototype_node, "queries", supports_local_labels
-        )
+        query_artificial_edge_index = self.get_artificial_edges(batch, label_to_prototype_node, "queries")
 
         batch.queries.edge_index = query_artificial_edge_index
 
@@ -143,13 +139,14 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
     def plot_batch(self, samples):
 
-        g = to_networkx(samples, to_undirected=True)
-        d = dict(g.degree)
-        nx.draw(g, nodelist=d.keys(), node_size=[v * 50 for v in d.values()], with_labels=True)
+        g = to_networkx(samples, to_undirected=False)
+        # d = dict(g.degree)
+        # nodelist=d.keys(), node_size=[v * 50 for v in d.values()],
+        nx.draw(g, with_labels=True)
 
         plt.show()
 
-    def plot_samples(self, samples, batch: EpisodeBatch, queries_or_supports):
+    def plot_samples(self, batch: EpisodeBatch, queries_or_supports):
         samples = (
             batch.split_supports_in_episodes()
             if queries_or_supports == "supports"
@@ -163,7 +160,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols)
 
         for sample, ax in zip(samples_one_by_one, axs):
-            g = to_networkx(sample, to_undirected=True)
+            g = to_networkx(sample, to_undirected=False)
             nx.draw(g, ax=ax, with_labels=True)
 
         plt.show()
@@ -288,7 +285,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         return self.loss_func(similarities, batch.cosine_targets)
 
-    def get_artificial_edges(self, batch, label_to_prototype_mapping, supports_or_queries: str, supports_local_labels):
+    def get_artificial_edges(self, batch, label_to_prototype_mapping, supports_or_queries: str):
 
         ref_tensor = batch.supports.edge_index
 
@@ -348,7 +345,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         edges = []
         for node in torch.arange(starting_index, starting_index + num_nodes):
             u, v = aggregator_node_index.item(), node.item()
-            edges.append([u, v])
+            # edges.append([u, v])
             edges.append([v, u])
 
         return edges
@@ -358,7 +355,8 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         aggregator_node_index = cumsums[ind + 1] + ind
         u, v = aggregator_node_index.item(), label_prototype_node
-        pooling_to_prototype_edges = [[u, v], [v, u]]
+        # pooling_to_prototype_edges = [[u, v], [v, u]]
+        pooling_to_prototype_edges = [[u, v]]
 
         return pooling_to_prototype_edges
 
@@ -384,7 +382,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
     def get_query_aggregators(self, embedded_queries, batch):
 
-        aggregator_indices = batch.queries.lens - 1
+        aggregator_indices = batch.queries.ptr - 1
         embedded_aggregators = embedded_queries[aggregator_indices]
 
         return embedded_aggregators

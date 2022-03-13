@@ -2,7 +2,7 @@ _target_: fs_grl.pl_modules.fully_graphical.FullyGraphical
 
 optimizer:
   _target_: torch.optim.Adam
-  lr: 1e-3
+  lr: 5e-5
 
 model:
   _target_: fs_grl.modules.fully_graphical_module.FullyGraphicalModule
@@ -17,6 +17,6 @@ model:
     num_mlp_layers: 2
     embedding_dim: 32
     hidden_dim: 32
-    num_convs: 2
+    num_convs: 5
     dropout_rate: 0
     do_preprocess: false

@@ -17,3 +17,5 @@ test_episode_hparams:
   num_queries_per_class: 2
   num_classes_per_episode: 2
   num_supports_per_class: 3
+
+train_ratio: 0.5
