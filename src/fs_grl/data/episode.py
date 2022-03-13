@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass
-from typing import List, Union
+from typing import Dict, List, Union
 
 import torch
 from torch_geometric.data import Batch, Data
@@ -67,6 +67,7 @@ class EpisodeBatch(Episode):
         num_episodes: int,
         cosine_targets: torch.Tensor,
         local_labels: torch.Tensor,
+        label_to_prototype_mapping: Dict,
     ):
         """
 
@@ -86,15 +87,27 @@ class EpisodeBatch(Episode):
         self.num_episodes = num_episodes
         self.cosine_targets = cosine_targets
         self.local_labels = local_labels
+        self.label_to_prototype_mapping = label_to_prototype_mapping
 
     @classmethod
-    def from_episode_list(cls, episode_list: List[Episode], episode_hparams: EpisodeHParams) -> "EpisodeBatch":
+    def from_episode_list(
+        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototypes=True
+    ) -> "EpisodeBatch":
 
         # TODO: add collate time prototype edges
-        # for episode in episode_list:
-        #     last_support: Data = episode.supports[-1]
-        #     cls.add_prototype_features(last_support, episode_hparams)
-        #     cls.add_prototype_edges(episode_list)
+        if add_prototypes:
+            label_to_prototype_mappings = []
+            all_prototype_edges = []
+
+            for episode in episode_list:
+                label_to_prototype_mapping = cls.get_label_to_prototype_mapping(episode, episode_hparams)
+
+                last_support: Data = episode.supports[-1]
+                cls.add_prototype_features(last_support, episode_hparams)
+                prototype_edges = cls.add_prototype_edges(episode, label_to_prototype_mapping, episode_hparams)
+
+                label_to_prototype_mappings.append(label_to_prototype_mapping)
+                all_prototype_edges.append(prototype_edges)
 
         # N * K * batch_size
         supports: List[Data] = flatten([episode.supports for episode in episode_list])
@@ -105,6 +118,26 @@ class EpisodeBatch(Episode):
         global_labels: List[int] = flatten([episode.global_labels for episode in episode_list])
 
         supports_batch: Batch = Batch.from_data_list(supports)
+
+        if add_prototypes:
+            # TODO: fix
+            supports_by_episodes = [Batch.from_data_list(episode.supports) for episode in episode_list]
+
+            batch_edge_index = []
+            cumsum = 0
+            for episode_ind, episode_supports in enumerate(supports_by_episodes):
+                episode_edges = episode_supports.edge_index
+                prototype_edges = all_prototype_edges[episode_ind]
+                episode_edges = torch.cat((episode_edges, prototype_edges), dim=1)
+
+                episode_edges += cumsum
+
+                cumsum += episode_supports.num_nodes
+
+                batch_edge_index.append(episode_edges)
+
+            batch_edge_index = torch.cat(batch_edge_index, dim=1)
+            supports_batch.edge_index = batch_edge_index
 
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
@@ -126,6 +159,7 @@ class EpisodeBatch(Episode):
             num_episodes=num_episodes,
             cosine_targets=cosine_targets,
             local_labels=local_labels,
+            label_to_prototype_mapping=label_to_prototype_mapping,
         )
 
     #
@@ -267,15 +301,37 @@ class EpisodeBatch(Episode):
         last_support.x = torch.cat((last_support.x, prototype_features), dim=0)
 
     @classmethod
-    def add_prototype_edges(cls):
-        # TODO: implement
-        # cls.add_prototype_edges(episode_list)
-        #
-        # label_prototype_node = label_to_prototype_node[label.item()]
-        #
-        # aggregator_node_index = cumsums[ind + 1] - 1
-        # u, v = aggregator_node_index.item(), label_prototype_node
-        # pooling_to_prototype_edges = [[u, v]]
-        #
-        # return pooling_to_prototype_edges
-        pass
+    def get_label_to_prototype_mapping(cls, episode, episode_hparams):
+
+        supports = episode.supports
+        total_num_nodes = sum([support.num_nodes for support in supports]) + episode_hparams.num_classes_per_episode
+        episode_global_labels = torch.unique(torch.tensor([support.y for support in supports]))
+        sorted_episode_global_labels = torch.sort(episode_global_labels).values
+
+        episode_label_to_prot = {
+            global_label.item(): total_num_nodes - (ind + 1)
+            for ind, global_label in enumerate(sorted_episode_global_labels)
+        }
+        return episode_label_to_prot
+
+    @classmethod
+    def add_prototype_edges(cls, episode, label_to_prototype_mapping, episode_hparams):
+        supports = episode.supports
+        pooling_to_prototype_edges = []
+
+        cumsum = 0
+        for ind, support in enumerate(supports):
+            label_prototype_node = label_to_prototype_mapping[support.y.item()]
+
+            # TODO: check correctness
+            cumsum += (
+                support.num_nodes - 1
+                if ind != (len(supports) - 1)
+                else support.num_nodes - episode_hparams.num_classes_per_episode - 1
+            )
+            aggregator_node_index = cumsum + ind
+            u, v = aggregator_node_index, label_prototype_node
+            pooling_to_prototype_edge = [u, v]
+            pooling_to_prototype_edges.append(pooling_to_prototype_edge)
+
+        return torch.tensor(pooling_to_prototype_edges).transpose(1, 0)

@@ -96,21 +96,12 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
             self.plot_samples(batch, queries_or_supports="queries")
             self.plot_batch(batch.queries)
 
-        batch.supports.x, batch.supports.lens = self.get_prototype_node_features(batch)
-
-        label_to_prototype_node = self.get_label_to_prototype_mapping(batch)
-
-        support_artificial_edge_index = self.get_artificial_edges(batch, label_to_prototype_node)
-
-        batch.supports.edge_index = support_artificial_edge_index
-
-        if self.plot_graphs:
-            self.plot_batch(batch.supports)
-
         embedded_supports = self.embed_supports(batch.supports)
 
+        label_to_prototype_mapping = batch.label_to_prototype_mapping
+
         # shape (num_classes_per_episode, hidden_dim)
-        class_prototypes = self.get_class_prototypes(embedded_supports, batch, label_to_prototype_node)
+        class_prototypes = self.get_class_prototypes(embedded_supports, batch, label_to_prototype_mapping)
 
         embedded_queries = self.embed_queries(batch.queries)
 

@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: triangles
+  - data: dummy
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule

@@ -9,7 +9,7 @@ model:
   feature_dim: ???
   num_classes: ???
   margin: 0.5
-  plot_graphs: false
+  plot_graphs: true
 
   embedder:
     _target_: fs_grl.modules.node_embedder.NodeEmbedder
