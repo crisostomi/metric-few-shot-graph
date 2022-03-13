@@ -1,9 +1,13 @@
+import copy
 import itertools
 from dataclasses import dataclass
 from typing import Dict, List, Union
 
+import networkx as nx
 import torch
+from matplotlib import pyplot as plt
 from torch_geometric.data import Batch, Data
+from torch_geometric.utils import to_networkx
 
 from fs_grl.data.utils import flatten
 
@@ -91,20 +95,29 @@ class EpisodeBatch(Episode):
 
     @classmethod
     def from_episode_list(
-        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototypes=True
+        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototypes=True, plot_graphs=True
     ) -> "EpisodeBatch":
 
-        # TODO: add collate time prototype edges
+        episode_list = [copy.deepcopy(episode) for episode in episode_list]
+
         if add_prototypes:
             label_to_prototype_mappings = []
             all_prototype_edges = []
 
+            cumsum = 0
             for episode in episode_list:
-                label_to_prototype_mapping = cls.get_label_to_prototype_mapping(episode, episode_hparams)
 
                 last_support: Data = episode.supports[-1]
+
                 cls.add_prototype_features(last_support, episode_hparams)
-                prototype_edges = cls.add_prototype_edges(episode, label_to_prototype_mapping, episode_hparams)
+                old_cumsum = cumsum
+
+                cumsum += sum([support.num_nodes for support in episode.supports])
+
+                label_to_prototype_mapping = cls.get_label_to_prototype_mapping(episode, episode_hparams, cumsum)
+                prototype_edges = cls.add_prototype_edges(
+                    episode, label_to_prototype_mapping, episode_hparams, old_cumsum
+                )
 
                 label_to_prototype_mappings.append(label_to_prototype_mapping)
                 all_prototype_edges.append(prototype_edges)
@@ -120,7 +133,7 @@ class EpisodeBatch(Episode):
         supports_batch: Batch = Batch.from_data_list(supports)
 
         if add_prototypes:
-            # TODO: fix
+            # TODO: check if it works with batching
             supports_by_episodes = [Batch.from_data_list(episode.supports) for episode in episode_list]
 
             batch_edge_index = []
@@ -138,6 +151,7 @@ class EpisodeBatch(Episode):
 
             batch_edge_index = torch.cat(batch_edge_index, dim=1)
             supports_batch.edge_index = batch_edge_index
+            supports_batch.num_edges += episode_hparams.num_classes_per_episode
 
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
@@ -151,7 +165,7 @@ class EpisodeBatch(Episode):
         local_labels = cosine_targets.reshape(-1, episode_hparams.num_classes_per_episode)
         local_labels = local_labels.argmax(dim=-1)
 
-        return cls(
+        episode_batch = cls(
             supports=supports_batch,
             queries=queries_batch,
             global_labels=global_labels_batch,
@@ -159,8 +173,76 @@ class EpisodeBatch(Episode):
             num_episodes=num_episodes,
             cosine_targets=cosine_targets,
             local_labels=local_labels,
-            label_to_prototype_mapping=label_to_prototype_mapping,
+            label_to_prototype_mapping=label_to_prototype_mappings,
         )
+
+        if plot_graphs:
+            episode_batch.plot_batch(queries_batch, "queries")
+            episode_batch.plot_batch(supports_batch, "supports")
+
+        return episode_batch
+
+    def plot_batch(self, samples, supports_or_queries):
+        g = to_networkx(samples, to_undirected=False)
+        pos = nx.nx_agraph.graphviz_layout(g, prog="twopi", args="")
+
+        plt.figure(figsize=(16, 16))
+
+        aggregator_nodes = [node.item() for node in self.get_aggregator_indices(supports_or_queries)]
+        all_nodes = set(range(samples.num_nodes))
+        normal_nodes = all_nodes.difference(aggregator_nodes)
+
+        normal_nodes_labels = {k: k for k, v in pos.items() if k in normal_nodes}
+        aggregator_nodes_labels = {k: k for k, v in pos.items() if k in aggregator_nodes}
+
+        nx.draw_networkx_nodes(g, pos, nodelist=normal_nodes, node_color="tab:grey", node_size=40, alpha=0.5)
+        nx.draw_networkx_labels(g, pos, labels=normal_nodes_labels, alpha=0.5)
+
+        nx.draw_networkx_nodes(g, pos, nodelist=aggregator_nodes, node_color="tab:blue", node_size=80, alpha=0.5)
+        nx.draw_networkx_labels(g, pos, labels=aggregator_nodes_labels, alpha=0.5)
+
+        if supports_or_queries == "supports":
+            prototype_nodes = {v for mapping in self.label_to_prototype_mapping for k, v in mapping.items()}
+
+        normal_edges = []
+        aggregator_edges = []
+        prototype_edges = []
+        for edge in g.edges:
+            u, v = edge
+            if v in aggregator_nodes:
+                aggregator_edges.append(edge)
+            elif supports_or_queries == "supports" and v in prototype_nodes:
+                prototype_edges.append(edge)
+            else:
+                normal_edges.append(edge)
+
+        nx.draw_networkx_edges(g, pos, edgelist=normal_edges, edge_color="tab:grey")
+        nx.draw_networkx_edges(g, pos, edgelist=aggregator_edges, edge_color="tab:blue", style="dashed")
+
+        if supports_or_queries == "supports":
+            # TODO: fix when batching works
+            prototype_nodes_labels = {k: k for k, v in pos.items() if k in prototype_nodes}
+
+            nx.draw_networkx_nodes(g, pos, nodelist=prototype_nodes, node_color="#FAC60E", node_size=160, alpha=0.5)
+            nx.draw_networkx_labels(g, pos, labels=prototype_nodes_labels, alpha=0.5)
+            nx.draw_networkx_edges(g, pos, edgelist=prototype_edges, edge_color="#FAC60E", style="dashed")
+
+        plt.axis("equal")
+
+        plt.show()
+
+    def get_aggregator_indices(self, queries_or_supports):
+        if queries_or_supports == "queries":
+            return self.queries.ptr[1:] - 1
+        else:
+
+            ptr = self.supports.ptr[1:]
+            ptr_by_episode = ptr.split(tuple([self.num_supports_per_episode] * self.num_episodes))
+            aggregator_indices = [episode_ptr - 1 for episode_ptr in ptr_by_episode]
+            for episode_aggregators in aggregator_indices:
+                episode_aggregators[-1] -= self.episode_hparams.num_classes_per_episode
+            aggregator_indices = torch.cat(aggregator_indices, dim=0)
+            return aggregator_indices
 
     #
     # def to_episode_list(self):
@@ -301,37 +383,56 @@ class EpisodeBatch(Episode):
         last_support.x = torch.cat((last_support.x, prototype_features), dim=0)
 
     @classmethod
-    def get_label_to_prototype_mapping(cls, episode, episode_hparams):
+    def get_label_to_prototype_mapping(cls, episode, episode_hparams, cumsum):
 
         supports = episode.supports
-        total_num_nodes = sum([support.num_nodes for support in supports]) + episode_hparams.num_classes_per_episode
+        prototype_index = cumsum
         episode_global_labels = torch.unique(torch.tensor([support.y for support in supports]))
         sorted_episode_global_labels = torch.sort(episode_global_labels).values
 
         episode_label_to_prot = {
-            global_label.item(): total_num_nodes - (ind + 1)
+            global_label.item(): prototype_index - (ind + 1)
             for ind, global_label in enumerate(sorted_episode_global_labels)
         }
         return episode_label_to_prot
 
     @classmethod
-    def add_prototype_edges(cls, episode, label_to_prototype_mapping, episode_hparams):
+    def add_prototype_edges(cls, episode, label_to_prototype_mapping, episode_hparams, cumsum):
         supports = episode.supports
         pooling_to_prototype_edges = []
 
-        cumsum = 0
+        episode_cumsum = 0
         for ind, support in enumerate(supports):
             label_prototype_node = label_to_prototype_mapping[support.y.item()]
 
             # TODO: check correctness
-            cumsum += (
+            episode_cumsum += (
                 support.num_nodes - 1
                 if ind != (len(supports) - 1)
                 else support.num_nodes - episode_hparams.num_classes_per_episode - 1
             )
-            aggregator_node_index = cumsum + ind
+            aggregator_node_index = episode_cumsum + ind + cumsum
             u, v = aggregator_node_index, label_prototype_node
             pooling_to_prototype_edge = [u, v]
             pooling_to_prototype_edges.append(pooling_to_prototype_edge)
 
         return torch.tensor(pooling_to_prototype_edges).transpose(1, 0)
+
+    def plot_samples(self, batch: "EpisodeBatch", queries_or_supports):
+        samples = (
+            batch.split_supports_in_episodes()
+            if queries_or_supports == "supports"
+            else batch.split_queries_in_episodes()
+        )
+
+        samples = samples[0]
+        samples_one_by_one = samples.to_data_list()
+
+        ncols, nrows = len(samples_one_by_one), 1
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols)
+
+        for sample, ax in zip(samples_one_by_one, axs):
+            g = to_networkx(sample, to_undirected=False)
+            nx.draw(g, ax=ax, with_labels=True)
+
+        plt.show()

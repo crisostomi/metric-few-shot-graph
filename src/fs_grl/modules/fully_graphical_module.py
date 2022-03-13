@@ -1,13 +1,10 @@
 import abc
 from typing import Dict, List
 
-import matplotlib.pyplot as plt
-import networkx as nx
 import torch
 import torch.nn as nn
 from hydra.utils import instantiate
 from torch_geometric.data import Batch
-from torch_geometric.utils import to_networkx
 
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.data.utils import get_lens_from_batch_assignment
@@ -89,19 +86,10 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         :return:
         """
 
-        if self.plot_graphs:
-            self.plot_samples(batch, queries_or_supports="supports")
-            self.plot_batch(batch.supports)
-
-            self.plot_samples(batch, queries_or_supports="queries")
-            self.plot_batch(batch.queries)
-
         embedded_supports = self.embed_supports(batch.supports)
 
-        label_to_prototype_mapping = batch.label_to_prototype_mapping
-
         # shape (num_classes_per_episode, hidden_dim)
-        class_prototypes = self.get_class_prototypes(embedded_supports, batch, label_to_prototype_mapping)
+        class_prototypes = self.get_class_prototypes(embedded_supports, batch, batch.label_to_prototype_mapping)
 
         embedded_queries = self.embed_queries(batch.queries)
 
@@ -114,125 +102,6 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
             "class_prototypes": class_prototypes,
             "similarities": similarities,
         }
-
-    def plot_batch(self, samples):
-
-        g = to_networkx(samples, to_undirected=False)
-        nx.draw(g, with_labels=True)
-
-        plt.show()
-
-    def plot_samples(self, batch: EpisodeBatch, queries_or_supports):
-        samples = (
-            batch.split_supports_in_episodes()
-            if queries_or_supports == "supports"
-            else batch.split_queries_in_episodes()
-        )
-
-        samples = samples[0]
-        samples_one_by_one = samples.to_data_list()
-
-        ncols, nrows = len(samples_one_by_one), 1
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols)
-
-        for sample, ax in zip(samples_one_by_one, axs):
-            g = to_networkx(sample, to_undirected=False)
-            nx.draw(g, ax=ax, with_labels=True)
-
-        plt.show()
-
-    def get_aggregating_nodes_features(self, batch: EpisodeBatch, queries_or_supports: str):
-        """
-        initialize the features for the artificial aggregating nodes
-        :param batch:
-        :param queries_or_supports:
-        :return: features to add, updated lens and updated cumsums
-        """
-
-        samples_by_episode = (
-            batch.split_supports_in_episodes()
-            if queries_or_supports == "supports"
-            else batch.split_queries_in_episodes()
-        )
-
-        feature_dim = batch.feature_dim
-
-        new_samples_x = []
-        new_lens = []
-
-        for episode_samples in samples_by_episode:
-
-            lens = get_lens_from_batch_assignment(episode_samples.batch)
-
-            samples_x_single = episode_samples.x.split(tuple(lens))
-
-            new_samples_x_single = []
-            for sample_x in samples_x_single:
-                new_node_feature = torch.ones((feature_dim)).unsqueeze(0).type_as(sample_x)
-                sample_x = torch.cat((sample_x, new_node_feature), dim=0)
-
-                new_samples_x_single.append(sample_x)
-
-            new_episode_samples_x = torch.cat(new_samples_x_single, dim=0)
-
-            num_samples_per_episode = (
-                batch.num_supports_per_episode if queries_or_supports == "supports" else batch.num_queries_per_episode
-            )
-            assert new_episode_samples_x.shape[0] == episode_samples.num_nodes + num_samples_per_episode
-
-            new_samples_x.append(new_episode_samples_x)
-
-            new_episode_lens = lens + 1
-            new_lens.append(new_episode_lens)
-
-        new_samples_x = torch.cat(new_samples_x, dim=0)
-
-        num_nodes = batch.supports.num_nodes if queries_or_supports == "supports" else batch.queries.num_nodes
-        assert new_samples_x.shape[0] == num_nodes + num_samples_per_episode * batch.num_episodes
-
-        new_lens = torch.cat(new_lens, dim=0)
-        new_ptr = torch.cumsum(new_lens, dim=0)
-
-        return new_samples_x, new_lens, new_ptr
-
-    # def get_prototype_node_features(self, batch):
-    #     """
-    #     initialize the features for the artificial prototype nodes
-    #     :return: features containing both node features and added ones, updated lens
-    #     """
-    #
-    #     # list of B batches, each collating NxK support graphs
-    #
-    #     batch.supports.lens = get_lens_from_batch_assignment(batch.supports.batch)
-    #
-    #     supports_x_by_episode = batch.split_support_features_in_episodes()
-    #
-    #     lens_by_episode = batch.supports.lens.split(tuple([batch.num_supports_per_episode] * batch.num_episodes))
-    #
-    #     feature_dim = batch.feature_dim
-    #     new_x = []
-    #
-    #     for episode_ind, episode_supports_x in enumerate(supports_x_by_episode):
-    #
-    #         # one prototype node per class, initialized with ones
-    #         prototype_nodes_features = torch.ones((batch.episode_hparams.num_classes_per_episode, feature_dim)).type_as(
-    #             episode_supports_x
-    #         )
-    #
-    #         new_episode_x = torch.cat((episode_supports_x, prototype_nodes_features), dim=0)
-    #         new_x.append(new_episode_x)
-    #
-    #         assert new_episode_x.shape[0] == episode_supports_x.shape[0] + batch.episode_hparams.num_classes_per_episode
-    #
-    #         episode_lens = lens_by_episode[episode_ind]
-    #         # the prototype nodes are counted in the nodes of the last sample of the episode
-    #         episode_lens[-1] = episode_lens[-1] + batch.episode_hparams.num_classes_per_episode
-    #
-    #     new_x = torch.cat(new_x, dim=0)
-    #
-    #     new_lens = torch.cat(lens_by_episode, dim=0)
-    #
-    #     return new_x, new_lens
 
     def get_label_to_prototype_mapping(self, batch):
         """
@@ -329,9 +198,11 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         return pooling_to_prototype_edges
 
-    def get_class_prototypes(self, embedded_supports, batch, label_to_prototype_node):
+    def get_class_prototypes(self, embedded_supports, batch, label_to_prototype_mapping):
 
-        embedded_supports_one_by_one = embedded_supports.split(tuple(batch.supports.lens))
+        # TODO: should this be updated?
+        lens = get_lens_from_batch_assignment(batch.supports.batch)
+        embedded_supports_one_by_one = embedded_supports.split(tuple(lens))
 
         embedded_supports_by_episodes = [
             torch.cat(
@@ -345,13 +216,13 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         ]
 
         return [
-            {key: episode_supports[value] for key, value in label_to_prototype_node[episode_ind].items()}
+            {key: episode_supports[value] for key, value in label_to_prototype_mapping[episode_ind].items()}
             for episode_ind, episode_supports in enumerate(embedded_supports_by_episodes)
         ]
 
     def get_query_aggregators(self, embedded_queries, batch):
 
-        aggregator_indices = batch.queries.ptr[1:] - 1
+        aggregator_indices = batch.get_aggregator_indices("queries")
         embedded_aggregators = embedded_queries[aggregator_indices]
 
         return embedded_aggregators
