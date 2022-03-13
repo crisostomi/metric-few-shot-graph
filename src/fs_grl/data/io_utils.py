@@ -17,7 +17,7 @@ class Node:
         self.attrs = attrs
 
 
-def load_data(dir_path, dataset_name, feature_params):
+def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes):
     """
     Loads a TU graph dataset.
 
@@ -30,9 +30,9 @@ def load_data(dir_path, dataset_name, feature_params):
     graph_list = load_graph_list(dir_path, dataset_name)
 
     class_to_label_dict = get_classes_to_label_dict(graph_list)
-    data_list = to_data_list(graph_list, class_to_label_dict, feature_params)
+    data_list = to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes)
 
-    set_node_features(data_list, feature_params=feature_params)
+    set_node_features(data_list, feature_params=feature_params, add_aggregator_nodes=add_aggregator_nodes)
 
     return data_list, class_to_label_dict
 
@@ -60,7 +60,7 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict, feature_params) -> List[Data]:
+def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -72,7 +72,7 @@ def to_data_list(graph_list, class_to_label_dict, feature_params) -> List[Data]:
     data_list = []
 
     for G in graph_list:
-        edge_index = get_edge_index_from_nx(G)
+        edge_index = get_edge_index_from_nx(G, add_aggregator_nodes)
         label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
 
         data = Data(
@@ -219,9 +219,10 @@ def set_node_features(data_list: List[Data], feature_params: Dict, add_aggregato
     for data, node_features in zip(data_list, all_node_features):
         assert data.num_nodes == node_features.shape[0]
         if add_aggregator_nodes:
-            aggregator_node_features = torch.ones_like(node_features[0])
+            aggregator_node_features = torch.ones_like(node_features[0]).unsqueeze(0)
+            # TODO: check that num nodes is updated, and that this change is actually reflected
+            data.num_nodes = data.num_nodes + 1
             node_features = torch.cat((node_features, aggregator_node_features), dim=0)
-            # TODO: check that num nodes is updated
         data["x"] = node_features
         # TODO: check if this must be updated when adding aggregator edges
         data["num_sample_edges"] = data.edge_index.shape[1]
@@ -270,7 +271,7 @@ def get_one_hot_attrs(attrs, data_list):
     return all_one_hot_attrs
 
 
-def get_edge_index_from_nx(G: nx.Graph, add_aggregator_edges=False) -> Tensor:
+def get_edge_index_from_nx(G: nx.Graph, add_aggregator_nodes=False) -> Tensor:
     """
     Extracts edge index from networkx graph
     :param G: networkx graph
@@ -284,7 +285,7 @@ def get_edge_index_from_nx(G: nx.Graph, add_aggregator_edges=False) -> Tensor:
 
     # aggregator node is in the last index
     aggregator_node_index = G.number_of_nodes()
-    if add_aggregator_edges:
+    if add_aggregator_nodes:
         aggregator_edges = torch.tensor([(node, aggregator_node_index) for node in range(0, aggregator_node_index)])
         edge_index = torch.cat((edge_index, aggregator_edges), dim=0)
 

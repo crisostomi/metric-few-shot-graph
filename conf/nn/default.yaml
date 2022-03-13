@@ -23,6 +23,7 @@ data:
 #      - num_cycles
     max_considered_cycle_len: 3
 
+  add_aggregator_nodes: true
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt

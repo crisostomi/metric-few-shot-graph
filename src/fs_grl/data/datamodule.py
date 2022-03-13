@@ -97,6 +97,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self,
         dataset_name,
         feature_params: Dict,
+        add_aggregator_nodes,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -162,7 +163,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             self.classes_split = self.get_classes_split()
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.data_list, self.class_to_label_dict = load_data(
-                self.data_dir, self.dataset_name, feature_params=feature_params
+                self.data_dir,
+                self.dataset_name,
+                feature_params=feature_params,
+                add_aggregator_nodes=add_aggregator_nodes,
             )
 
             self.labels_split = self.get_labels_split()
@@ -299,6 +303,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         self,
         dataset_name,
         feature_params: Dict,
+        add_aggregator_nodes,
         data_dir,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -322,6 +327,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         super().__init__(
             dataset_name=dataset_name,
             feature_params=feature_params,
+            add_aggregator_nodes=add_aggregator_nodes,
             data_dir=data_dir,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,

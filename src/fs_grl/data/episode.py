@@ -90,8 +90,15 @@ class EpisodeBatch(Episode):
     @classmethod
     def from_episode_list(cls, episode_list: List[Episode], episode_hparams: EpisodeHParams) -> "EpisodeBatch":
 
+        # TODO: add collate time prototype edges
+        # for episode in episode_list:
+        #     last_support: Data = episode.supports[-1]
+        #     cls.add_prototype_features(last_support, episode_hparams)
+        #     cls.add_prototype_edges(episode_list)
+
         # N * K * batch_size
         supports: List[Data] = flatten([episode.supports for episode in episode_list])
+
         # N * Q * batch_size
         queries: List[Data] = flatten([episode.queries for episode in episode_list])
         # N * batch_size
@@ -251,3 +258,24 @@ class EpisodeBatch(Episode):
     def feature_dim(self):
         assert self.supports.x.shape[-1] == self.queries.x.shape[-1]
         return self.supports.x.shape[-1]
+
+    @classmethod
+    def add_prototype_features(cls, last_support, episode_hparams):
+        last_support.num_nodes += episode_hparams.num_classes_per_episode
+        feature_dim = last_support.x.shape[-1]
+        prototype_features = torch.ones((episode_hparams.num_classes_per_episode, feature_dim)).type_as(last_support.x)
+        last_support.x = torch.cat((last_support.x, prototype_features), dim=0)
+
+    @classmethod
+    def add_prototype_edges(cls):
+        # TODO: implement
+        # cls.add_prototype_edges(episode_list)
+        #
+        # label_prototype_node = label_to_prototype_node[label.item()]
+        #
+        # aggregator_node_index = cumsums[ind + 1] - 1
+        # u, v = aggregator_node_index.item(), label_prototype_node
+        # pooling_to_prototype_edges = [[u, v]]
+        #
+        # return pooling_to_prototype_edges
+        pass
