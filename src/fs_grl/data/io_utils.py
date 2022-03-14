@@ -308,7 +308,7 @@ def get_classes_to_label_dict(graph_list) -> Dict:
     return class_to_label_dict
 
 
-def load_pickle_data(data_dir, dataset_name, feature_params):
+def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes):
 
     node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
     base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
@@ -321,15 +321,15 @@ def load_pickle_data(data_dir, dataset_name, feature_params):
         "novel": sorted(list(novel_set["label2graphs"].keys())),
     }
 
-    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params)
-    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params)
-    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params)
+    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params, add_aggregator_nodes)
+    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params, add_aggregator_nodes)
+    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params, add_aggregator_nodes)
     assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
 
     return data_list, classes_split
 
 
-def graph_dict_to_data_list(graph_set, node_attrs, feature_params):
+def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes):
     data_list = []
 
     for cls, graph_indices in graph_set["label2graphs"].items():
@@ -343,6 +343,15 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params):
             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
 
             num_nodes = len(nodes_global_to_local_map)
+
+            if add_aggregator_nodes:
+                aggregator_node_index = num_nodes
+                num_nodes += 1
+                aggregator_edges = torch.tensor(
+                    [(node, aggregator_node_index) for node in range(0, aggregator_node_index)]
+                )
+                edge_indices = torch.cat((edge_indices, aggregator_edges), dim=0)
+
             edge_index = edge_indices.t().contiguous()
 
             G = create_networkx_graph(num_nodes, edge_indices)

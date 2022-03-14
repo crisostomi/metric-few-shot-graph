@@ -80,7 +80,9 @@ class TSNEPlot(Callback):
         return sampled_data
 
     def compute_tsne(self, n_components, embeddings):
-        tsne = TSNE(n_components=n_components, n_iter=1000, verbose=1)
+        pylogger.info(f"Computing {n_components}d t-SNE...")
+
+        tsne = TSNE(n_components=n_components, n_iter=1000)
         tsne_results = tsne.fit_transform(embeddings)
 
         return tsne_results
