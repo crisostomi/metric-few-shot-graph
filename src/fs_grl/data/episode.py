@@ -220,7 +220,6 @@ class EpisodeBatch(Episode):
         nx.draw_networkx_edges(g, pos, edgelist=aggregator_edges, edge_color="tab:blue", style="dashed")
 
         if supports_or_queries == "supports":
-            # TODO: fix when batching works
             prototype_nodes_labels = {k: k for k, v in pos.items() if k in prototype_nodes}
 
             nx.draw_networkx_nodes(g, pos, nodelist=prototype_nodes, node_color="#FAC60E", node_size=160, alpha=0.5)

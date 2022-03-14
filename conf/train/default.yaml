@@ -53,7 +53,7 @@ callbacks:
 
 distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 20 # 50 for TL, 5 for DML
+    patience: 5 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -72,7 +72,7 @@ distance-metric-learning-callbacks:
     refresh_rate: 20
 
   - _target_: fs_grl.callbacks.TSNEPlot
-    samples_per_class: 60
+    samples_per_class: 100
 
 meta-testing-callbacks:
 
