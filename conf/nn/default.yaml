@@ -20,9 +20,9 @@ data:
   feature_params:
     features_to_consider:
       - degree
-      - num_cycles
-    max_considered_cycle_len: 3
-
+        #      - num_cycles
+    max_considered_cycle_len: 4
+    
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
@@ -59,9 +59,9 @@ data:
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 8
-    val: 4
-    test: 4
+    train: 0
+    val: 0
+    test: 0
 
   batch_size:
     train: 16

@@ -1,8 +1,36 @@
+import logging
+
+import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Linear, ReLU, Sequential
 from torch_geometric.nn import GINConv, GraphMultisetTransformer, JumpingKnowledge, global_add_pool
+from torch_scatter import scatter_std, scatter_add
 
 from fs_grl.modules.mlp import MLP
+
+pylogger = logging.getLogger(__name__)
+
+
+class GlobalAddVarPool(nn.Module):
+    def __init__(self, in_features: int, out_features: int) -> None:
+        super().__init__()
+        self.in_features = in_features
+        self.mid_features = out_features // 2
+        self.out_features = out_features
+
+        if self.out_features % 2 != 0:
+            message = f"<AddVar> pooling requires an even number of output features, got '{self.out_features}'!"
+            pylogger.error(message)
+            raise ValueError(message)
+
+        self.linear_projection = nn.Linear(in_features=self.in_features, out_features=self.mid_features)
+
+    def forward(self, x, batch):
+        features = self.linear_projection(x)
+        var_features = scatter_std(src=features, index=batch, dim=0)
+        add_features = scatter_add(src=features, index=batch, dim=0)
+        out = torch.cat((add_features, var_features), dim=-1)
+        return out
 
 
 class GNNEmbedder(nn.Module):
@@ -58,13 +86,14 @@ class GNNEmbedder(nn.Module):
             hidden_dim=self.hidden_dim,
         )
 
-        self.pooling = (
-            GraphMultisetTransformer(
+        if self.pooling_method == "GMT":
+            self.pooling = GraphMultisetTransformer(
                 in_channels=self.embedding_dim, hidden_channels=self.embedding_dim, out_channels=self.embedding_dim
             )
-            if self.pooling_method == "GMT"
-            else global_add_pool
-        )
+        elif self.pooling_method == "ADDVAR":
+            self.pooling = GlobalAddVarPool(in_features=self.embedding_dim, out_features=self.embedding_dim)
+        else:
+            self.pooling = global_add_pool
 
         self.jumping_knowledge = JumpingKnowledge(mode="cat")
 

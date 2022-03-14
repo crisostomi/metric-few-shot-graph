@@ -14,9 +14,9 @@ model:
     _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
     feature_dim: ???
     num_mlp_layers: 2
-    embedding_dim: 32
+    embedding_dim: 64
     hidden_dim: 32
     num_convs: 2
     dropout_rate: 0.5
-    pooling: sum # sum, GMT
+    pooling: ADDVAR # sum, GMT, ADDVAR
     do_preprocess: false

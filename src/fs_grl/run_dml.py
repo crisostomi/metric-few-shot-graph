@@ -68,8 +68,12 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule)
 
-    pylogger.info("Starting testing!")
-    trainer.test(datamodule=datamodule)
+    if fast_dev_run:
+        pylogger.info("Skipping testing in 'fast_dev_run' mode!")
+    else:
+        if trainer.checkpoint_callback.best_model_path is not None:
+            pylogger.info("Starting testing!")
+            trainer.test(datamodule=datamodule)
 
     if logger is not None:
         logger.experiment.finish()
