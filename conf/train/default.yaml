@@ -93,6 +93,7 @@ logging:
     entity: gladia
     log_model: ${..upload.run_files}
     mode: 'online'
+    tags: ${core.tags}
 
 meta-testing-logging:
   upload:

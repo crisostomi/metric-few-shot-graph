@@ -61,10 +61,10 @@ data:
 
   num_workers:
     train: 8
-    val: 8
+    val: 4
     test: 4
 
   batch_size:
-    train: 4
-    val: 4
-    test: 4
+    train: 16
+    val: 16
+    test: 16
