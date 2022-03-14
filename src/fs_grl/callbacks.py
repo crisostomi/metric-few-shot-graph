@@ -37,7 +37,10 @@ class TSNEPlot(Callback):
         classes = []
         for batch in dataloader:
             batch.to(pl_module.device)
+
             embedded_sample = embedder(batch)
+            aggregator_indices = batch.ptr[1:] - 1
+            embedded_sample = embedded_sample[aggregator_indices]
 
             embeddings.append(embedded_sample.cpu())
             classes.append(batch.y.cpu())

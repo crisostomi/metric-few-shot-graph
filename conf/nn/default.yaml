@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: dummy
+  - data: triangles
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -20,8 +20,8 @@ data:
   feature_params:
     features_to_consider:
       - degree
-#      - num_cycles
-    max_considered_cycle_len: 3
+      - num_cycles
+    max_considered_cycle_len: 4
 
   add_aggregator_nodes: true
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
@@ -60,11 +60,11 @@ data:
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 0
-    val: 0
-    test: 0
+    train: 8
+    val: 4
+    test: 4
 
   batch_size:
-    train: 2
-    val: 2
-    test: 4
+    train: 16
+    val: 16
+    test: 16

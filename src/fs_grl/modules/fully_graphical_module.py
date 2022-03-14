@@ -7,7 +7,6 @@ from hydra.utils import instantiate
 from torch_geometric.data import Batch
 
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.data.utils import get_lens_from_batch_assignment
 from fs_grl.modules.losses.margin import MarginLoss
 from fs_grl.modules.similarities.cosine import cosine
 
@@ -89,7 +88,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         embedded_supports = self.embed_supports(batch.supports)
 
         # shape (num_classes_per_episode, hidden_dim)
-        class_prototypes = self.get_class_prototypes(embedded_supports, batch, batch.label_to_prototype_mapping)
+        class_prototypes = self.get_class_prototypes(embedded_supports, batch.label_to_prototype_mapping)
 
         embedded_queries = self.embed_queries(batch.queries)
 
@@ -198,26 +197,11 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         return pooling_to_prototype_edges
 
-    def get_class_prototypes(self, embedded_supports, batch, label_to_prototype_mapping):
-
-        # TODO: should this be updated?
-        lens = get_lens_from_batch_assignment(batch.supports.batch)
-        embedded_supports_one_by_one = embedded_supports.split(tuple(lens))
-
-        embedded_supports_by_episodes = [
-            torch.cat(
-                embedded_supports_one_by_one[
-                    i * batch.num_supports_per_episode : i * batch.num_supports_per_episode
-                    + batch.num_supports_per_episode
-                ],
-                dim=0,
-            )
-            for i in range(batch.num_episodes)
-        ]
+    def get_class_prototypes(self, embedded_supports, label_to_prototype_mapping):
 
         return [
-            {key: episode_supports[value] for key, value in label_to_prototype_mapping[episode_ind].items()}
-            for episode_ind, episode_supports in enumerate(embedded_supports_by_episodes)
+            {key: embedded_supports[value] for key, value in label_to_prototype_mapping_by_episode.items()}
+            for label_to_prototype_mapping_by_episode in label_to_prototype_mapping
         ]
 
     def get_query_aggregators(self, embedded_queries, batch):

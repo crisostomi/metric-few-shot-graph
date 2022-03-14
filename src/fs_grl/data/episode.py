@@ -95,7 +95,7 @@ class EpisodeBatch(Episode):
 
     @classmethod
     def from_episode_list(
-        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototypes=True, plot_graphs=True
+        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototypes=True, plot_graphs=False
     ) -> "EpisodeBatch":
 
         episode_list = [copy.deepcopy(episode) for episode in episode_list]
@@ -141,9 +141,9 @@ class EpisodeBatch(Episode):
             for episode_ind, episode_supports in enumerate(supports_by_episodes):
                 episode_edges = episode_supports.edge_index
                 prototype_edges = all_prototype_edges[episode_ind]
-                episode_edges = torch.cat((episode_edges, prototype_edges), dim=1)
 
                 episode_edges += cumsum
+                episode_edges = torch.cat((episode_edges, prototype_edges), dim=1)
 
                 cumsum += episode_supports.num_nodes
 
