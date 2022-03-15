@@ -356,7 +356,12 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
 
             G = create_networkx_graph(num_nodes, edge_indices)
 
-            node_features = get_node_features(graph_set=graph_set, node_attrs=node_attrs, graph_idx=graph_idx)
+            node_features = get_node_features(
+                graph_set=graph_set,
+                node_attrs=node_attrs,
+                graph_idx=graph_idx,
+                add_aggregator_nodes=add_aggregator_nodes,
+            )
             assert node_features.size(0) == num_nodes
 
             if "num_cycles" in feature_params["features_to_consider"]:
@@ -388,7 +393,7 @@ def create_networkx_graph(num_nodes, edge_indices):
     return G
 
 
-def get_node_features(graph_set, node_attrs, graph_idx):
+def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes):
     node_features = []
 
     for node in graph_set["graph2nodes"][graph_idx]:
@@ -396,6 +401,10 @@ def get_node_features(graph_set, node_attrs, graph_idx):
         if len(attr.size()) == 0:
             attr = attr.unsqueeze(0)
         node_features.append(attr)
+
+    if add_aggregator_nodes:
+        aggregator_feature = torch.ones_like(node_features[0])
+        node_features.append(aggregator_feature)
 
     return torch.stack(node_features)
 

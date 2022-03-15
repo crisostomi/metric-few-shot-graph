@@ -292,10 +292,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 samples for key, samples in self.data_list_by_label.items() if key in self.val_labels
             ]
             val_samples = flatten(val_samples)
-
-            return {"base": base_samples, "val": val_samples, "novel": novel_samples}
         else:
-            return {"base": base_samples, "novel": novel_samples}
+            base_samples, val_samples = random_split_bucketed(base_samples, self.train_ratio)
+
+        return {"base": base_samples, "val": val_samples, "novel": novel_samples}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(" f"{self.num_workers=}, " f"{self.batch_size=})"
@@ -355,18 +355,18 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         if stage is None or stage == "fit":
 
             split_samples = self.split_base_novel_samples()
-            base_samples = split_samples["base"]
+            base_samples, val_samples = split_samples["base"], split_samples["val"]
 
-            if "val" in split_samples.keys():
-                base_samples_train, samples_val = base_samples, split_samples["val"]
-            else:
-                base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
+            # if "val" in split_samples.keys():
+            #     base_samples_train, samples_val = base_samples, split_samples["val"]
+            # else:
+            #     base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
 
             if self.separated_query_support:
-                base_samples_train = self.split_query_support(base_samples_train)
+                base_samples = self.split_query_support(base_samples)
 
             train_dataset_params = {
-                "samples": base_samples_train,
+                "samples": base_samples,
                 "num_episodes": self.num_train_episodes,
                 "class_to_label_dict": self.class_to_label_dict,
                 "stage_labels": self.base_labels,
@@ -386,7 +386,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
             self.val_datasets = [
                 MapEpisodicDataset(
-                    samples=samples_val,
+                    samples=val_samples,
                     num_episodes=self.num_test_episodes,
                     stage_labels=self.val_labels,
                     class_to_label_dict=self.class_to_label_dict,

@@ -71,6 +71,7 @@ distance-metric-learning-callbacks:
 
   - _target_: fs_grl.callbacks.TSNEPlot
     samples_per_class: 100
+    colors_path: ${oc.env:PROJECT_ROOT}/data/colors/${nn.data.dataset_name}.json
 
 meta-testing-callbacks:
 
