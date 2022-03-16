@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import List
 
@@ -17,17 +18,25 @@ pylogger = logging.getLogger(__name__)
 
 
 class TSNEPlot(Callback):
-    def __init__(self, samples_per_class) -> None:
+    def __init__(self, samples_per_class, colors_path) -> None:
         super().__init__()
         self.samples_per_class = samples_per_class
+        with open(colors_path) as f:
+            colors = json.load(f)
+        self.colors = colors
 
     def on_test_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         split_base_novel_samples = trainer.datamodule.split_base_novel_samples()
-        base_dataset, novel_dataset = split_base_novel_samples["base"], split_base_novel_samples["novel"]
-        base_dataset = self.sample_data_tsne(base_dataset, self.samples_per_class)
+        train_dataset, val_dataset, novel_dataset = (
+            split_base_novel_samples["base"],
+            split_base_novel_samples["val"],
+            split_base_novel_samples["novel"],
+        )
+        train_dataset = self.sample_data_tsne(train_dataset, self.samples_per_class)
+        val_dataset = self.sample_data_tsne(val_dataset, self.samples_per_class)
         novel_dataset = self.sample_data_tsne(novel_dataset, self.samples_per_class)
 
-        base_novel_dataset = base_dataset + novel_dataset
+        base_novel_dataset = train_dataset + val_dataset + novel_dataset
 
         dataloader = DataLoader(base_novel_dataset)
         embedder = pl_module.model.embedder
@@ -37,7 +46,10 @@ class TSNEPlot(Callback):
         classes = []
         for batch in dataloader:
             batch.to(pl_module.device)
+
             embedded_sample = embedder(batch)
+            aggregator_indices = batch.ptr[1:] - 1
+            embedded_sample = embedded_sample[aggregator_indices]
 
             embeddings.append(embedded_sample.cpu())
             classes.append(batch.y.cpu())
@@ -50,7 +62,8 @@ class TSNEPlot(Callback):
         plot = self.tsne_plot(
             tsne_results=tsne_results,
             labels=classes,
-            num_base_samples=len(base_dataset),
+            num_train_samples=len(train_dataset),
+            num_val_samples=len(val_dataset),
             num_novel_samples=len(novel_dataset),
         )
 
@@ -60,7 +73,8 @@ class TSNEPlot(Callback):
         plot3d = self.tsne_plot(
             tsne_results=tsne3d_results,
             labels=classes,
-            num_base_samples=len(base_dataset),
+            num_train_samples=len(train_dataset),
+            num_val_samples=len(val_dataset),
             num_novel_samples=len(novel_dataset),
         )
 
@@ -77,43 +91,51 @@ class TSNEPlot(Callback):
         return sampled_data
 
     def compute_tsne(self, n_components, embeddings):
-        tsne = TSNE(n_components=n_components, n_iter=1000, verbose=1)
+        pylogger.info(f"Computing {n_components}d t-SNE...")
+
+        tsne = TSNE(n_components=n_components, n_iter=1000)
         tsne_results = tsne.fit_transform(embeddings)
 
         return tsne_results
 
-    def tsne_plot(self, tsne_results, labels, num_base_samples, num_novel_samples):
-        tsne_base = tsne_results[:num_base_samples, :]
-        base_labels = labels[:num_base_samples]
+    def tsne_plot(self, tsne_results, labels, num_train_samples, num_val_samples, num_novel_samples):
+        tsne_results = torch.from_numpy(tsne_results)
+        tsne_train, tsne_val, tsne_novel = tsne_results.split(
+            tuple([num_train_samples, num_val_samples, num_novel_samples])
+        )
 
-        tsne_novel = tsne_results[-num_novel_samples:, :]
-        novel_labels = labels[-num_novel_samples:]
+        train_labels, val_labels, novel_labels = labels.split(
+            tuple([num_train_samples, num_val_samples, num_novel_samples])
+        )
 
-        assert len(tsne_results) == (len(tsne_base) + len(tsne_novel))
-        assert len(labels) == (len(base_labels) + len(novel_labels))
+        assert len(tsne_results) == (len(tsne_train) + len(tsne_val) + len(tsne_novel))
+        assert len(labels) == (len(train_labels) + len(val_labels) + len(novel_labels))
 
-        base_scatter = self.create_scatter_plot(tsne_base, base_labels)
-        novel_scatter = self.create_scatter_plot(tsne_novel, novel_labels, novel=True)
-        data = base_scatter + novel_scatter
+        train_scatter = self.create_scatter_plot(tsne_train, train_labels, split="train")
+        val_scatter = self.create_scatter_plot(tsne_val, val_labels, split="val")
+        novel_scatter = self.create_scatter_plot(tsne_novel, novel_labels, split="novel")
+        data = train_scatter + val_scatter + novel_scatter
 
         plot = go.Figure(data=data)
 
         return plot
 
-    def create_scatter_plot(self, tsne_results, labels, novel=False):
+    def create_scatter_plot(self, tsne_results, labels, split):
         data = []
-        marker_symbol = "circle-open" if novel else "x"
-        legendgroup = "novel" if novel else "base"
-        legendgrouptitle_text = "Novel classes" if novel else "Base classes"
+        marker_symbol = "circle-open" if split == "novel" else "x"
+        legendgroup = split
+        legendgrouptitle_text = f"{split} classes"
 
         for label in labels.unique():
             indices = torch.where(labels == label)[0]
+            rgb = self.colors[label.item()]
             if tsne_results.shape[1] == 2:
                 scatter = go.Scatter(
                     x=tsne_results[indices, 0],
                     y=tsne_results[indices, 1],
                     mode="markers",
                     marker_symbol=f"{marker_symbol}",
+                    marker_color=f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})",
                     name=f"Class {label+1}",
                     legendgroup=legendgroup,
                     legendgrouptitle_text=legendgrouptitle_text,
@@ -126,6 +148,7 @@ class TSNEPlot(Callback):
                     mode="markers",
                     marker_symbol=marker_symbol,
                     marker_size=3 if marker_symbol == "x" else 6,
+                    marker_color=f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})",
                     name=f"Class {label+1}",
                     legendgroup=legendgroup,
                     legendgrouptitle_text=legendgrouptitle_text,

@@ -17,7 +17,7 @@ class Node:
         self.attrs = attrs
 
 
-def load_data(dir_path, dataset_name, feature_params):
+def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes):
     """
     Loads a TU graph dataset.
 
@@ -30,9 +30,9 @@ def load_data(dir_path, dataset_name, feature_params):
     graph_list = load_graph_list(dir_path, dataset_name)
 
     class_to_label_dict = get_classes_to_label_dict(graph_list)
-    data_list = to_data_list(graph_list, class_to_label_dict, feature_params)
+    data_list = to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes)
 
-    set_node_features(data_list, feature_params=feature_params)
+    set_node_features(data_list, feature_params=feature_params, add_aggregator_nodes=add_aggregator_nodes)
 
     return data_list, class_to_label_dict
 
@@ -60,7 +60,7 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict, feature_params) -> List[Data]:
+def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -72,7 +72,7 @@ def to_data_list(graph_list, class_to_label_dict, feature_params) -> List[Data]:
     data_list = []
 
     for G in graph_list:
-        edge_index = get_edge_index_from_nx(G)
+        edge_index = get_edge_index_from_nx(G, add_aggregator_nodes)
         label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
 
         data = Data(
@@ -188,7 +188,7 @@ def get_num_cycles_from_nx(G: nx.Graph, max_considered_cycle_len) -> Tensor:
     return torch.stack(num_cycles, dim=0)
 
 
-def set_node_features(data_list: List[Data], feature_params: Dict):
+def set_node_features(data_list: List[Data], feature_params: Dict, add_aggregator_nodes: bool = False):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     In place function
@@ -218,7 +218,14 @@ def set_node_features(data_list: List[Data], feature_params: Dict):
 
     for data, node_features in zip(data_list, all_node_features):
         assert data.num_nodes == node_features.shape[0]
+        if add_aggregator_nodes:
+            aggregator_node_features = torch.ones_like(node_features[0]).unsqueeze(0)
+            # TODO: check that num nodes is updated, and that this change is actually reflected
+            data.num_nodes = data.num_nodes + 1
+            node_features = torch.cat((node_features, aggregator_node_features), dim=0)
         data["x"] = node_features
+        # TODO: check if this must be updated when adding aggregator edges
+        data["num_sample_edges"] = data.edge_index.shape[1]
         data["degrees"] = None
         data["tags"] = None
         data["num_cycles"] = None
@@ -264,7 +271,7 @@ def get_one_hot_attrs(attrs, data_list):
     return all_one_hot_attrs
 
 
-def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
+def get_edge_index_from_nx(G: nx.Graph, add_aggregator_nodes=False) -> Tensor:
     """
     Extracts edge index from networkx graph
     :param G: networkx graph
@@ -275,6 +282,13 @@ def get_edge_index_from_nx(G: nx.Graph) -> Tensor:
     edges_tensor_reverse = torch.tensor(list([(edge[1], edge[0]) for edge in G.edges]), dtype=torch.long)
 
     edge_index = torch.cat((edges_tensor, edges_tensor_reverse), dim=0)
+
+    # aggregator node is in the last index
+    aggregator_node_index = G.number_of_nodes()
+    if add_aggregator_nodes:
+        aggregator_edges = torch.tensor([(node, aggregator_node_index) for node in range(0, aggregator_node_index)])
+        edge_index = torch.cat((edge_index, aggregator_edges), dim=0)
+
     return edge_index.t().contiguous()
 
 
@@ -294,7 +308,7 @@ def get_classes_to_label_dict(graph_list) -> Dict:
     return class_to_label_dict
 
 
-def load_pickle_data(data_dir, dataset_name, feature_params):
+def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes):
 
     node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
     base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
@@ -307,15 +321,15 @@ def load_pickle_data(data_dir, dataset_name, feature_params):
         "novel": sorted(list(novel_set["label2graphs"].keys())),
     }
 
-    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params)
-    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params)
-    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params)
+    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params, add_aggregator_nodes)
+    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params, add_aggregator_nodes)
+    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params, add_aggregator_nodes)
     assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
 
     return data_list, classes_split
 
 
-def graph_dict_to_data_list(graph_set, node_attrs, feature_params):
+def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes):
     data_list = []
 
     for cls, graph_indices in graph_set["label2graphs"].items():
@@ -329,11 +343,25 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params):
             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
 
             num_nodes = len(nodes_global_to_local_map)
+
+            if add_aggregator_nodes:
+                aggregator_node_index = num_nodes
+                num_nodes += 1
+                aggregator_edges = torch.tensor(
+                    [(node, aggregator_node_index) for node in range(0, aggregator_node_index)]
+                )
+                edge_indices = torch.cat((edge_indices, aggregator_edges), dim=0)
+
             edge_index = edge_indices.t().contiguous()
 
             G = create_networkx_graph(num_nodes, edge_indices)
 
-            node_features = get_node_features(graph_set=graph_set, node_attrs=node_attrs, graph_idx=graph_idx)
+            node_features = get_node_features(
+                graph_set=graph_set,
+                node_attrs=node_attrs,
+                graph_idx=graph_idx,
+                add_aggregator_nodes=add_aggregator_nodes,
+            )
             assert node_features.size(0) == num_nodes
 
             if "num_cycles" in feature_params["features_to_consider"]:
@@ -365,7 +393,7 @@ def create_networkx_graph(num_nodes, edge_indices):
     return G
 
 
-def get_node_features(graph_set, node_attrs, graph_idx):
+def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes):
     node_features = []
 
     for node in graph_set["graph2nodes"][graph_idx]:
@@ -373,6 +401,10 @@ def get_node_features(graph_set, node_attrs, graph_idx):
         if len(attr.size()) == 0:
             attr = attr.unsqueeze(0)
         node_features.append(attr)
+
+    if add_aggregator_nodes:
+        aggregator_feature = torch.ones_like(node_features[0])
+        node_features.append(aggregator_feature)
 
     return torch.stack(node_features)
 

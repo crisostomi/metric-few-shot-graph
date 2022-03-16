@@ -97,6 +97,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self,
         dataset_name,
         feature_params: Dict,
+        add_aggregator_nodes,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -162,7 +163,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             self.classes_split = self.get_classes_split()
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.data_list, self.class_to_label_dict = load_data(
-                self.data_dir, self.dataset_name, feature_params=feature_params
+                self.data_dir,
+                self.dataset_name,
+                feature_params=feature_params,
+                add_aggregator_nodes=add_aggregator_nodes,
             )
 
             self.labels_split = self.get_labels_split()
@@ -170,7 +174,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         elif self.dataset_name in {"COIL-DEL", "R52"}:
             # handle pickle data
             self.data_list, self.classes_split = load_pickle_data(
-                data_dir=self.data_dir, dataset_name=self.dataset_name, feature_params=feature_params
+                data_dir=self.data_dir,
+                dataset_name=self.dataset_name,
+                feature_params=feature_params,
+                add_aggregator_nodes=add_aggregator_nodes,
             )
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
@@ -285,10 +292,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 samples for key, samples in self.data_list_by_label.items() if key in self.val_labels
             ]
             val_samples = flatten(val_samples)
-
-            return {"base": base_samples, "val": val_samples, "novel": novel_samples}
         else:
-            return {"base": base_samples, "novel": novel_samples}
+            base_samples, val_samples = random_split_bucketed(base_samples, self.train_ratio)
+
+        return {"base": base_samples, "val": val_samples, "novel": novel_samples}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(" f"{self.num_workers=}, " f"{self.batch_size=})"
@@ -299,6 +306,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         self,
         dataset_name,
         feature_params: Dict,
+        add_aggregator_nodes,
         data_dir,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -322,6 +330,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         super().__init__(
             dataset_name=dataset_name,
             feature_params=feature_params,
+            add_aggregator_nodes=add_aggregator_nodes,
             data_dir=data_dir,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
@@ -346,18 +355,18 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         if stage is None or stage == "fit":
 
             split_samples = self.split_base_novel_samples()
-            base_samples = split_samples["base"]
+            base_samples, val_samples = split_samples["base"], split_samples["val"]
 
-            if "val" in split_samples.keys():
-                base_samples_train, samples_val = base_samples, split_samples["val"]
-            else:
-                base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
+            # if "val" in split_samples.keys():
+            #     base_samples_train, samples_val = base_samples, split_samples["val"]
+            # else:
+            #     base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
 
             if self.separated_query_support:
-                base_samples_train = self.split_query_support(base_samples_train)
+                base_samples = self.split_query_support(base_samples)
 
             train_dataset_params = {
-                "samples": base_samples_train,
+                "samples": base_samples,
                 "num_episodes": self.num_train_episodes,
                 "class_to_label_dict": self.class_to_label_dict,
                 "stage_labels": self.base_labels,
@@ -377,7 +386,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
 
             self.val_datasets = [
                 MapEpisodicDataset(
-                    samples=samples_val,
+                    samples=val_samples,
                     num_episodes=self.num_test_episodes,
                     stage_labels=self.val_labels,
                     class_to_label_dict=self.class_to_label_dict,

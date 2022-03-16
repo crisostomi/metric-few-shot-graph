@@ -32,7 +32,7 @@ repos:
 #      - id: fix-encoding-pragma  # adds  # -*- coding: utf-8 -*- to the top of python files.
 #      - id: forbid-new-submodules  # prevents addition of new git submodules.
       - id: mixed-line-ending  # replaces or checks mixed line ending.
-        args: ['--fix=no']
+        args: ['--fix=crlf']
 #      - id: name-tests-test  # this verifies that test files are named correctly.
 #      - id: no-commit-to-branch  # don't commit to branch
 #      - id: requirements-txt-fixer  # sorts entries in requirements.txt.
