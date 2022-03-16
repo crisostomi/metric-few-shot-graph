@@ -19,3 +19,8 @@ test_episode_hparams:
   num_supports_per_class: 3
 
 train_ratio: 0.5
+
+num_workers:
+  train: 0
+  val: 0
+  test: 0

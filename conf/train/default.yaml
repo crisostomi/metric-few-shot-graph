@@ -1,13 +1,11 @@
-# reproducibility
 seed_index: 0
 deterministic: False
 
-# PyTorch Lightning Trainer https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
-  fast_dev_run: False # Enable this for debug purposes
+  fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 100 # 100 for TL
+  max_epochs: 100
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
@@ -28,8 +26,8 @@ restore:
   mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'loss/val'
-  mode: 'min'
+  metric: 'val/acc/macro'
+  mode: 'max'
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
