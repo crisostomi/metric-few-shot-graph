@@ -95,7 +95,7 @@ class EpisodeBatch(Episode):
 
     @classmethod
     def from_episode_list(
-        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototype_nodes=True, plot_graphs=False
+        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototype_nodes, plot_graphs
     ) -> "EpisodeBatch":
 
         if add_prototype_nodes:

@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: coildel
+  - data: dummy
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -23,13 +23,14 @@ data:
 #      - num_cycles
     max_considered_cycle_len: 4
 
-  add_aggregator_nodes: true
+  add_artificial_nodes: ${oc.select:nn.model.add_artificial_nodes, false}
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
   curriculum_learning: false
   max_difficult_step: 10000
+  plot_graphs: false
 
   train_episode_hparams:
     _target_: fs_grl.data.episode.EpisodeHParams

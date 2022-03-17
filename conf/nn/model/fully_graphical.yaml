@@ -1,4 +1,5 @@
 _target_: fs_grl.pl_modules.fully_graphical.FullyGraphical
+add_artificial_nodes: true
 
 optimizer:
   _target_: torch.optim.Adam
@@ -9,7 +10,6 @@ model:
   feature_dim: ???
   num_classes: ???
   margin: 0.5
-  plot_graphs: false
 
   embedder:
     _target_: fs_grl.modules.node_embedder.NodeEmbedder

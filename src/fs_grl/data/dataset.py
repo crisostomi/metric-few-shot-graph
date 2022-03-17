@@ -307,8 +307,13 @@ class MapEpisodicDataset(Dataset, EpisodicDataset):
 
 
 class EpisodicDataLoader(DataLoader):
-    def __init__(self, dataset: Dataset, episode_hparams, **kwargs):
-        collate_fn = partial(EpisodeBatch.from_episode_list, episode_hparams=episode_hparams)
+    def __init__(self, dataset: Dataset, episode_hparams, add_prototype_nodes, plot_graphs, **kwargs):
+        collate_fn = partial(
+            EpisodeBatch.from_episode_list,
+            episode_hparams=episode_hparams,
+            add_prototype_nodes=add_prototype_nodes,
+            plot_graphs=plot_graphs,
+        )
         super().__init__(dataset, collate_fn=collate_fn, **kwargs)
 
 

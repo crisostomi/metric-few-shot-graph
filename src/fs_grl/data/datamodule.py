@@ -97,7 +97,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self,
         dataset_name,
         feature_params: Dict,
-        add_aggregator_nodes,
+        add_artificial_nodes,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -166,7 +166,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 self.data_dir,
                 self.dataset_name,
                 feature_params=feature_params,
-                add_aggregator_nodes=add_aggregator_nodes,
+                add_aggregator_nodes=add_artificial_nodes,
             )
 
             self.labels_split = self.get_labels_split()
@@ -177,7 +177,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 data_dir=self.data_dir,
                 dataset_name=self.dataset_name,
                 feature_params=feature_params,
-                add_aggregator_nodes=add_aggregator_nodes,
+                add_aggregator_nodes=add_artificial_nodes,
             )
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
@@ -306,7 +306,6 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         self,
         dataset_name,
         feature_params: Dict,
-        add_aggregator_nodes,
         data_dir,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -324,14 +323,16 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         curriculum_learning,
         prototypes_path: str = "",
         max_difficult_step: int = 0,
+        add_artificial_nodes: bool = False,
+        plot_graphs: bool = False,
         **kwargs,
     ):
 
         super().__init__(
             dataset_name=dataset_name,
             feature_params=feature_params,
-            add_aggregator_nodes=add_aggregator_nodes,
             data_dir=data_dir,
+            add_artificial_nodes=add_artificial_nodes,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
             test_episode_hparams=test_episode_hparams,
@@ -349,6 +350,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         self.curriculum_learning = curriculum_learning
         self.prototypes_path = prototypes_path
         self.max_difficult_step = max_difficult_step
+        self.add_artificial_nodes = add_artificial_nodes
+        self.plot_graphs = plot_graphs
 
     def setup(self, stage: Optional[str] = None):
 
@@ -414,6 +417,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             batch_size=self.batch_size.train,
             num_workers=self.num_workers.train,
             pin_memory=self.pin_memory,
+            plot_graphs=self.plot_graphs,
+            add_prototype_nodes=self.add_artificial_nodes,
         )
 
     def val_dataloader(self):
@@ -425,6 +430,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 batch_size=self.batch_size.val,
                 num_workers=self.num_workers.val,
                 pin_memory=self.pin_memory,
+                plot_graphs=self.plot_graphs,
+                add_prototype_nodes=self.add_artificial_nodes,
             )
             for dataset in self.val_datasets
         ]
@@ -438,6 +445,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 batch_size=self.batch_size.test,
                 num_workers=self.num_workers.test,
                 pin_memory=self.pin_memory,
+                plot_graphs=self.plot_graphs,
+                add_prototype_nodes=self.add_artificial_nodes,
             )
             for dataset in self.test_datasets
         ]
