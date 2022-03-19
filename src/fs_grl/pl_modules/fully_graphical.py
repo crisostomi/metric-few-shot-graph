@@ -41,6 +41,7 @@ class FullyGraphical(MyLightningModule):
             num_classes_per_episode=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
+        self.variance_loss_weight = variance_loss_weight
 
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))
@@ -60,7 +61,6 @@ class FullyGraphical(MyLightningModule):
 
         self.base_prototypes = {}
         self.train_data_list_by_label = train_data_list_by_label
-        self.variance_loss_weight = variance_loss_weight
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """ """
@@ -74,8 +74,10 @@ class FullyGraphical(MyLightningModule):
         model_out = self(batch)
 
         margin_loss = self.model.compute_loss(model_out, batch)
-        intra_class_variance = self.model.get_intra_class_variance(
-            model_out["embedded_supports"], model_out["class_prototypes"], batch
+        intra_class_variance = (
+            self.model.get_intra_class_variance(model_out["embedded_supports"], model_out["class_prototypes"], batch)
+            if self.variance_loss_weight > 0
+            else 0
         )
 
         self.log_dict({f"loss/margin_loss/{split}": margin_loss}, on_epoch=True, on_step=True)
