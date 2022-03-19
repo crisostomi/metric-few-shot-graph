@@ -4,7 +4,8 @@ core:
   storage_dir: ${oc.env:PROJECT_ROOT}/storage
   version: 0.0.1
   tags:
-    - addvar
+    - fully-graphical
+    - no-batch-norm
 
 defaults:
   - hydra: default

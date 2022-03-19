@@ -98,6 +98,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         dataset_name,
         feature_params: Dict,
         add_artificial_nodes,
+        artificial_node_features,
         data_dir,
         classes_split_path: Optional[str],
         query_support_split_path,
@@ -167,6 +168,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 self.dataset_name,
                 feature_params=feature_params,
                 add_aggregator_nodes=add_artificial_nodes,
+                artificial_node_features=artificial_node_features,
             )
 
             self.labels_split = self.get_labels_split()
@@ -178,6 +180,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 dataset_name=self.dataset_name,
                 feature_params=feature_params,
                 add_aggregator_nodes=add_artificial_nodes,
+                artificial_node_features=artificial_node_features,
             )
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
@@ -324,6 +327,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         prototypes_path: str = "",
         max_difficult_step: int = 0,
         add_artificial_nodes: bool = False,
+        artificial_node_features: str = "",
         plot_graphs: bool = False,
         **kwargs,
     ):
@@ -333,6 +337,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             feature_params=feature_params,
             data_dir=data_dir,
             add_artificial_nodes=add_artificial_nodes,
+            artificial_node_features=artificial_node_features,
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
             test_episode_hparams=test_episode_hparams,
@@ -351,6 +356,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         self.prototypes_path = prototypes_path
         self.max_difficult_step = max_difficult_step
         self.add_artificial_nodes = add_artificial_nodes
+        self.artificial_node_features = artificial_node_features
         self.plot_graphs = plot_graphs
 
     def setup(self, stage: Optional[str] = None):
@@ -419,6 +425,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             pin_memory=self.pin_memory,
             plot_graphs=self.plot_graphs,
             add_prototype_nodes=self.add_artificial_nodes,
+            artificial_node_features=self.artificial_node_features,
         )
 
     def val_dataloader(self):
@@ -432,6 +439,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 pin_memory=self.pin_memory,
                 plot_graphs=self.plot_graphs,
                 add_prototype_nodes=self.add_artificial_nodes,
+                artificial_node_features=self.artificial_node_features,
             )
             for dataset in self.val_datasets
         ]
@@ -447,6 +455,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
                 pin_memory=self.pin_memory,
                 plot_graphs=self.plot_graphs,
                 add_prototype_nodes=self.add_artificial_nodes,
+                artificial_node_features=self.artificial_node_features,
             )
             for dataset in self.test_datasets
         ]

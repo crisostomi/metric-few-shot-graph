@@ -1,0 +1,67 @@
+program: src/fs_grl/run_dml.py
+
+command:
+  - python3
+  - ${program}
+
+method: grid
+
+project: fs-grl
+entity: gladia
+
+metric:
+  name: loss/val_epoch
+  goal: minimize
+
+parameters:
+
+  nn.model.fully_graphical.model.margin:
+    values:
+      - 0
+      - 0.5
+
+  nn.model.fully_graphical.optimizer.lr:
+    values:
+      - 1e-4
+      - 1e-5
+
+  nn.model.fully_graphical.model.embedder.embedding_dim:
+    values:
+      - 32
+      - 64
+
+  nn.model.fully_graphical.model.embedder.hidden_dim:
+      values:
+        - 32
+        - 64
+
+  nn.model.fully_graphical.model.embedder.num_convs:
+      values:
+        - 3
+        - 5
+
+  nn.model.fully_graphical.model.embedder.dropout_rate:
+    values:
+      - 0.
+      - 0.5
+
+  nn.model.fully_graphical.model.embedder.do_preprocess:
+    values:
+      - false
+      - true
+
+  nn.data.batch_size.train:
+    values:
+      - 4
+      - 8
+
+  train.seed_index:
+    values:
+      - 0
+      - 42
+      - 1337
+
+#  nn/data:
+#    values:
+#      - triangles
+#      - enzymes

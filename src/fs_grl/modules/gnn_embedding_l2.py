@@ -19,6 +19,8 @@ class GNNEmbeddingL2(GNNEmbeddingPairwise):
         batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
         batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]
 
+        batch_queries = torch.nn.functional.normalize(batch_queries)
+        batch_prototypes = torch.nn.functional.normalize(batch_prototypes)
         distances = torch.pow(torch.norm(batch_queries - batch_prototypes, p=2, dim=-1), 2)
         similarities = 1 / (1 + distances)
 

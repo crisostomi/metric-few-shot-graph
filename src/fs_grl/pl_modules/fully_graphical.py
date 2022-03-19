@@ -20,7 +20,9 @@ pylogger = logging.getLogger(__name__)
 class FullyGraphical(MyLightningModule):
     logger: NNLogger
 
-    def __init__(self, train_data_list_by_label, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+    def __init__(
+        self, train_data_list_by_label, variance_loss_weight, metadata: Optional[MetaData] = None, *args, **kwargs
+    ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
@@ -58,9 +60,7 @@ class FullyGraphical(MyLightningModule):
 
         self.base_prototypes = {}
         self.train_data_list_by_label = train_data_list_by_label
-        # metrics computed without mapping
-        # self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
-        # self.val_metrics = nn.ModuleDict({"val/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
+        self.variance_loss_weight = variance_loss_weight
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """ """
@@ -73,16 +73,30 @@ class FullyGraphical(MyLightningModule):
 
         model_out = self(batch)
 
-        loss = self.model.compute_loss(model_out, batch)
+        margin_loss = self.model.compute_loss(model_out, batch)
+        intra_class_variance = self.model.get_intra_class_variance(
+            model_out["embedded_supports"], model_out["class_prototypes"], batch
+        )
+
+        self.log_dict({f"loss/margin_loss/{split}": margin_loss}, on_epoch=True, on_step=True)
+        self.log_dict({f"loss/intra_class_variance/{split}": intra_class_variance}, on_epoch=True, on_step=True)
+
+        loss = margin_loss + self.variance_loss_weight * intra_class_variance
 
         self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
 
-        return {"similarities": model_out["similarities"], "loss": loss}
+        return {"model_out": model_out, "loss": loss}
 
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
         step_out = self.step(batch, "train")
-        similarities = step_out["similarities"]
+        embedded_queries, class_prototypes = (
+            step_out["model_out"]["embedded_queries"],
+            step_out["model_out"]["class_prototypes"],
+        )
+        similarities = self.model.get_prediction_similarities(embedded_queries, class_prototypes, batch)
+
+        # similarities = step_out["similarities"]
 
         predictions = self.get_predictions(similarities, batch)
 
@@ -99,8 +113,14 @@ class FullyGraphical(MyLightningModule):
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
 
-        # shape (B*(N*Q)*N)
-        similarities = step_out["similarities"]
+        embedded_queries, class_prototypes = (
+            step_out["model_out"]["embedded_queries"],
+            step_out["model_out"]["class_prototypes"],
+        )
+
+        similarities = self.model.get_prediction_similarities(embedded_queries, class_prototypes, batch)
+
+        # similarities = step_out["similarities"]
 
         predictions = self.get_predictions(similarities, batch)
 
@@ -115,8 +135,13 @@ class FullyGraphical(MyLightningModule):
 
         step_out = self.step(batch, "test")
 
-        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
-        similarities = step_out["similarities"]
+        embedded_queries, class_prototypes = (
+            step_out["model_out"]["embedded_queries"],
+            step_out["model_out"]["class_prototypes"],
+        )
+        similarities = self.model.get_prediction_similarities(embedded_queries, class_prototypes, batch)
+
+        # similarities = step_out["similarities"]
 
         predictions = self.get_predictions(similarities, batch)
 

@@ -1,24 +1,37 @@
 import torch.nn as nn
-from torch.nn import BatchNorm1d, Linear, ReLU, Sequential
-from torch_geometric.nn import GINConv, JumpingKnowledge
+from torch.nn import Linear, ReLU, Sequential
+from torch_geometric.nn import GINConv, GraphNorm, JumpingKnowledge
 
 from fs_grl.modules.mlp import MLP
 
 
 class NodeEmbedder(nn.Module):
-    def __init__(self, feature_dim, hidden_dim, embedding_dim, num_mlp_layers, num_convs, dropout_rate, do_preprocess):
+    def __init__(
+        self,
+        feature_dim,
+        hidden_dim,
+        embedding_dim,
+        num_mlp_layers,
+        num_convs,
+        dropout_rate,
+        do_preprocess,
+        use_batch_norm=True,
+        jump_mode="cat",
+    ):
         super().__init__()
 
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
         self.embedding_dim = embedding_dim
         self.num_convs = num_convs
+        self.jump_mode = jump_mode
         self.do_preprocess = do_preprocess
+        self.use_batch_norm = use_batch_norm
 
         self.preprocess_mlp = (
             Sequential(
                 Linear(self.feature_dim, self.hidden_dim),
-                BatchNorm1d(self.hidden_dim),
+                GraphNorm(self.hidden_dim) if self.use_batch_norm else nn.Identity(),
                 ReLU(),
                 Linear(self.hidden_dim, self.hidden_dim),
                 ReLU(),
@@ -33,15 +46,13 @@ class NodeEmbedder(nn.Module):
             conv = GINConv(
                 Sequential(
                     Linear(input_dim, self.hidden_dim),
-                    BatchNorm1d(self.hidden_dim),
+                    GraphNorm(self.hidden_dim) if self.use_batch_norm else nn.Identity(),
                     ReLU(),
                     Linear(self.hidden_dim, self.hidden_dim),
                     ReLU(),
                 )
             )
             self.convs.append(conv)
-
-        self.jump_mode = "cat"
 
         num_layers = (self.num_convs + 1) if self.do_preprocess else self.num_convs
         pooled_dim = (num_layers * self.hidden_dim) + self.feature_dim if self.jump_mode == "cat" else self.hidden_dim
@@ -53,9 +64,10 @@ class NodeEmbedder(nn.Module):
             input_dim=pooled_dim,
             output_dim=self.embedding_dim,
             hidden_dim=self.hidden_dim,
+            use_batch_norm=self.use_batch_norm,
         )
 
-        self.jumping_knowledge = JumpingKnowledge(mode="cat")
+        self.jumping_knowledge = JumpingKnowledge(mode=self.jump_mode) if self.jump_mode != "none" else None
 
     def forward(self, batch):
         """
@@ -77,7 +89,8 @@ class NodeEmbedder(nn.Module):
             self.dropout(h)
             jump_xs.append(h)
 
-        h = self.jumping_knowledge(jump_xs)
+        if self.jump_mode != "none":
+            h = self.jumping_knowledge(jump_xs)
 
         # out ~ (num_nodes_in_batch, output_dim)
         node_out_features = self.mlp(h)

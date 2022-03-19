@@ -17,7 +17,7 @@ class Node:
         self.attrs = attrs
 
 
-def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes):
+def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, artificial_node_features):
     """
     Loads a TU graph dataset.
 
@@ -32,7 +32,12 @@ def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes):
     class_to_label_dict = get_classes_to_label_dict(graph_list)
     data_list = to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes)
 
-    set_node_features(data_list, feature_params=feature_params, add_aggregator_nodes=add_aggregator_nodes)
+    set_node_features(
+        data_list,
+        feature_params=feature_params,
+        add_aggregator_nodes=add_aggregator_nodes,
+        artificial_node_features=artificial_node_features,
+    )
 
     return data_list, class_to_label_dict
 
@@ -188,7 +193,9 @@ def get_num_cycles_from_nx(G: nx.Graph, max_considered_cycle_len) -> Tensor:
     return torch.stack(num_cycles, dim=0)
 
 
-def set_node_features(data_list: List[Data], feature_params: Dict, add_aggregator_nodes: bool = False):
+def set_node_features(
+    data_list: List[Data], feature_params: Dict, add_aggregator_nodes: bool = False, artificial_node_features: str = ""
+):
     """
     Adds to each data in data_list either the tags, the degrees or both as node features
     In place function
@@ -219,8 +226,16 @@ def set_node_features(data_list: List[Data], feature_params: Dict, add_aggregato
     for data, node_features in zip(data_list, all_node_features):
         assert data.num_nodes == node_features.shape[0]
         if add_aggregator_nodes:
-            aggregator_node_features = torch.ones_like(node_features[0]).unsqueeze(0)
-            # TODO: check that num nodes is updated, and that this change is actually reflected
+
+            if artificial_node_features == "zeros":
+                aggregator_node_features = torch.zeros_like(node_features[0]).unsqueeze(0)
+            elif artificial_node_features == "ones":
+                aggregator_node_features = torch.ones_like(node_features[0]).unsqueeze(0)
+            elif artificial_node_features == "mean":
+                aggregator_node_features = torch.mean(node_features, dim=0).unsqueeze(0)
+            else:
+                raise NotImplementedError(f"Node features {artificial_node_features} not implemented")
+
             data.num_nodes = data.num_nodes + 1
             node_features = torch.cat((node_features, aggregator_node_features), dim=0)
         data["x"] = node_features
@@ -308,7 +323,7 @@ def get_classes_to_label_dict(graph_list) -> Dict:
     return class_to_label_dict
 
 
-def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes):
+def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes, artificial_node_features):
 
     node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
     base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
@@ -321,15 +336,21 @@ def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_node
         "novel": sorted(list(novel_set["label2graphs"].keys())),
     }
 
-    data_list = graph_dict_to_data_list(base_set, node_attrs, feature_params, add_aggregator_nodes)
-    data_list += graph_dict_to_data_list(val_set, node_attrs, feature_params, add_aggregator_nodes)
-    data_list += graph_dict_to_data_list(novel_set, node_attrs, feature_params, add_aggregator_nodes)
+    data_list = graph_dict_to_data_list(
+        base_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features
+    )
+    data_list += graph_dict_to_data_list(
+        val_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features
+    )
+    data_list += graph_dict_to_data_list(
+        novel_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features
+    )
     assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
 
     return data_list, classes_split
 
 
-def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes):
+def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features):
     data_list = []
 
     for cls, graph_indices in graph_set["label2graphs"].items():
@@ -361,6 +382,7 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
                 node_attrs=node_attrs,
                 graph_idx=graph_idx,
                 add_aggregator_nodes=add_aggregator_nodes,
+                artificial_node_features=artificial_node_features,
             )
             assert node_features.size(0) == num_nodes
 
@@ -393,7 +415,7 @@ def create_networkx_graph(num_nodes, edge_indices):
     return G
 
 
-def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes):
+def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes, artificial_node_features):
     node_features = []
 
     for node in graph_set["graph2nodes"][graph_idx]:
@@ -403,8 +425,15 @@ def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes):
         node_features.append(attr)
 
     if add_aggregator_nodes:
-        aggregator_feature = torch.ones_like(node_features[0])
-        node_features.append(aggregator_feature)
+        if artificial_node_features == "ones":
+            aggregator_features = torch.ones_like(node_features[0])
+        elif artificial_node_features == "zeros":
+            aggregator_features = torch.zeros_like(node_features[0])
+        elif artificial_node_features == "mean":
+            aggregator_features = torch.mean(torch.cat(node_features, dim=0), dim=0).unsqueeze(0)
+        else:
+            raise NotImplementedError(f"Node features {artificial_node_features} not implemented")
+        node_features.append(aggregator_features)
 
     return torch.stack(node_features)
 

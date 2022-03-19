@@ -18,12 +18,13 @@ pylogger = logging.getLogger(__name__)
 
 
 class TSNEPlot(Callback):
-    def __init__(self, samples_per_class, colors_path) -> None:
+    def __init__(self, samples_per_class, colors_path, threedimensional) -> None:
         super().__init__()
         self.samples_per_class = samples_per_class
         with open(colors_path) as f:
             colors = json.load(f)
         self.colors = colors
+        self.threedimensional = threedimensional
 
     def on_test_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         split_base_novel_samples = trainer.datamodule.split_base_novel_samples()
@@ -69,16 +70,17 @@ class TSNEPlot(Callback):
 
         trainer.logger.experiment.log({"t-SNE": plot})
 
-        tsne3d_results = self.compute_tsne(n_components=3, embeddings=embeddings)
-        plot3d = self.tsne_plot(
-            tsne_results=tsne3d_results,
-            labels=classes,
-            num_train_samples=len(train_dataset),
-            num_val_samples=len(val_dataset),
-            num_novel_samples=len(novel_dataset),
-        )
+        if self.threedimensional:
+            tsne3d_results = self.compute_tsne(n_components=3, embeddings=embeddings)
+            plot3d = self.tsne_plot(
+                tsne_results=tsne3d_results,
+                labels=classes,
+                num_train_samples=len(train_dataset),
+                num_val_samples=len(val_dataset),
+                num_novel_samples=len(novel_dataset),
+            )
 
-        trainer.logger.experiment.log({"3d t-SNE": plot3d})
+            trainer.logger.experiment.log({"3d t-SNE": plot3d})
 
     def sample_data_tsne(self, dataset, num_samples):
         label_to_samples_map = get_label_to_samples_map(dataset)

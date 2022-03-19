@@ -95,14 +95,19 @@ class EpisodeBatch(Episode):
 
     @classmethod
     def from_episode_list(
-        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, add_prototype_nodes, plot_graphs
+        cls,
+        episode_list: List[Episode],
+        episode_hparams: EpisodeHParams,
+        add_prototype_nodes: bool = False,
+        plot_graphs: bool = False,
+        artificial_node_features: str = "",
     ) -> "EpisodeBatch":
 
         if add_prototype_nodes:
             # for each episode, get the label -> prototype node mapping and the aggregator -> prototype edges
             episode_list = [copy.deepcopy(episode) for episode in episode_list]
             all_prototype_edges, label_to_prototype_mappings = cls.handle_prototype_nodes_and_edges(
-                episode_list, episode_hparams
+                episode_list, episode_hparams, artificial_node_features
             )
 
         # B * N * K
@@ -186,7 +191,9 @@ class EpisodeBatch(Episode):
         return local_labels
 
     @classmethod
-    def handle_prototype_nodes_and_edges(cls, episode_list: List[Episode], episode_hparams: EpisodeHParams):
+    def handle_prototype_nodes_and_edges(
+        cls, episode_list: List[Episode], episode_hparams: EpisodeHParams, artificial_node_features
+    ):
         """
 
         :param episode_list: List (num_episodes) containing the Episodes
@@ -203,10 +210,9 @@ class EpisodeBatch(Episode):
         # at episode i, contains the total number of nodes of all the supports of the previous episodes
         cumsum = 0
         for episode in episode_list:
-            last_support: Data = episode.supports[-1]
 
             # node features for the prototype nodes are added to the last support
-            cls.add_prototype_features(last_support, episode_hparams)
+            cls.add_prototype_features(episode.supports, episode_hparams, artificial_node_features)
 
             old_cumsum = cumsum
 
@@ -227,7 +233,7 @@ class EpisodeBatch(Episode):
         return all_prototype_edges, label_to_prototype_mappings
 
     @classmethod
-    def add_prototype_features(cls, last_support: Data, episode_hparams: EpisodeHParams):
+    def add_prototype_features(cls, supports: List[Data], episode_hparams: EpisodeHParams, artificial_node_features):
         """
         Add the node features for the prototype nodes. Currently, these are just ones.
         They are concatenated to the feature matrix of the last support graph.
@@ -238,12 +244,27 @@ class EpisodeBatch(Episode):
         :return:
         """
 
+        last_support = supports[-1]
+
         # add to the last sample a prototype node for each class
         last_support.num_nodes += episode_hparams.num_classes_per_episode
 
         feature_dim = last_support.x.shape[-1]
         # initialize the prototype features as ones
-        prototype_features = torch.ones((episode_hparams.num_classes_per_episode, feature_dim)).type_as(last_support.x)
+        if artificial_node_features == "ones":
+            prototype_features = torch.ones((episode_hparams.num_classes_per_episode, feature_dim)).type_as(
+                last_support.x
+            )
+        elif artificial_node_features == "zeros":
+            prototype_features = torch.zeros((episode_hparams.num_classes_per_episode, feature_dim)).type_as(
+                last_support.x
+            )
+        elif artificial_node_features == "mean":
+            support_features = torch.cat([support.x for support in supports], dim=0)
+            prototype_features = torch.mean(support_features, dim=0).unsqueeze(0)
+            prototype_features = prototype_features.repeat((episode_hparams.num_classes_per_episode, 1))
+        else:
+            raise NotImplementedError(f"Node features {artificial_node_features} not implemented.")
 
         last_support.x = torch.cat((last_support.x, prototype_features), dim=0)
 

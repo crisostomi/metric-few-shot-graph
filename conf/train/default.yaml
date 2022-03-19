@@ -26,8 +26,8 @@ restore:
   mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'val/acc/macro'
-  mode: 'max'
+  metric: 'loss/val'
+  mode: 'min'
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
@@ -51,7 +51,7 @@ callbacks:
 
 distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 5 # 50 for TL, 5 for DML
+    patience: 10 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -72,6 +72,7 @@ distance-metric-learning-callbacks:
   - _target_: fs_grl.callbacks.TSNEPlot
     samples_per_class: 100
     colors_path: ${oc.env:PROJECT_ROOT}/data/colors/${nn.data.dataset_name}.json
+    threedimensional: false
 
 meta-testing-callbacks:
 

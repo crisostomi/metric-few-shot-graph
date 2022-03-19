@@ -42,7 +42,8 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         similarities = self.get_similarities(query_aggregators, label_to_prototype_embed_map, batch)
 
         return {
-            "embedded_queries": embedded_queries,
+            "embedded_queries": query_aggregators,
+            "embedded_supports": embedded_supports,
             "class_prototypes": label_to_prototype_embed_map,
             "similarities": similarities,
         }
@@ -191,3 +192,74 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         class_prototype_matrix = torch.stack(sorted_class_prototypes_tensors)
 
         return class_prototype_matrix
+
+    def get_prediction_similarities(self, embedded_queries: torch.Tensor, class_prototypes, batch: EpisodeBatch):
+        """
+
+        :param embedded_queries:
+        :param class_prototypes: list (num_episodes) of dictionaries, each dictionary maps the global labels of
+                                 an episode to the corresponding prototype indices
+        :param batch:
+        :return:
+        """
+
+        # batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
+        # batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]
+
+        # distances = torch.pow(torch.norm(batch_queries - batch_prototypes, p=2, dim=-1), 2)
+        # similarities = 1 / (1 + distances)
+        similarities = self.get_similarities(embedded_queries, class_prototypes, batch)
+        return similarities
+
+    def get_intra_class_variance(
+        self, embedded_supports: torch.Tensor, label_to_prototype_embed_map: Dict, batch: EpisodeBatch
+    ):
+        """
+        Computes the mean of the intra-class variance for each episode, which is the
+        sum of the squared l2 distance between support aggregators and their corresponding class prototypes
+
+        :param embedded_supports:
+        :param label_to_prototype_embed_map:
+        :param batch:
+        :return:
+        """
+        support_aggregator_indices = batch.get_aggregator_indices("supports")
+
+        # shape (B*N*K, embedding_dim)
+        support_aggregators = embedded_supports[support_aggregator_indices]
+
+        support_aggregators_by_episode = support_aggregators.split(
+            [batch.num_supports_per_episode] * batch.num_episodes
+        )
+        labels_by_episode = batch.supports.y.split([batch.num_supports_per_episode] * batch.num_episodes)
+        global_labels_by_episode = batch.global_labels.split(
+            [batch.episode_hparams.num_classes_per_episode] * batch.num_episodes
+        )
+
+        inter_class_var = 0
+        for episode_ind in range(batch.num_episodes):
+            episode_global_labels = global_labels_by_episode[episode_ind]
+            episode_labels = labels_by_episode[episode_ind]
+            episode_label_to_prot_embed_map = label_to_prototype_embed_map[episode_ind]
+            episode_support_aggregators = support_aggregators_by_episode[episode_ind]
+
+            global_to_local_mapping = {
+                global_label.item(): ind for ind, global_label in enumerate(episode_global_labels)
+            }
+
+            # map global labels to local labels for the support samples
+            episode_local_labels = torch.tensor([global_to_local_mapping[label.item()] for label in episode_labels])
+
+            # (N, embedding_dim)
+            class_prototype_matrix = self.get_prototype_matrix_from_dict(episode_label_to_prot_embed_map)
+
+            # (N*K, embedding_dim)
+            aligned_class_prototypes = class_prototype_matrix[episode_local_labels]
+            distance_from_prototype = torch.pow(
+                torch.norm(episode_support_aggregators - aligned_class_prototypes, p=2, dim=-1), 2
+            )
+            inter_class_var += distance_from_prototype.sum(dim=-1)
+
+        inter_class_var = inter_class_var / batch.num_episodes
+
+        return inter_class_var

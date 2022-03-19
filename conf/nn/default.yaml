@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: dummy
+  - data: enzymes
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -24,6 +24,7 @@ data:
     max_considered_cycle_len: 4
 
   add_artificial_nodes: ${oc.select:nn.model.add_artificial_nodes, false}
+  artificial_node_features: zeros # zeros, ones, mean
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
@@ -62,10 +63,10 @@ data:
 
   num_workers:
     train: 8
-    val: 4
-    test: 4
+    val: 8
+    test: 8
 
   batch_size:
-    train: 16
-    val: 16
-    test: 16
+    train: 32
+    val: 32
+    test: 32
