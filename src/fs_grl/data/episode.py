@@ -71,7 +71,7 @@ class EpisodeBatch(Episode):
         num_episodes: int,
         cosine_targets: torch.Tensor,
         local_labels: torch.Tensor,
-        label_to_prototype_mapping: List[Dict],
+        label_to_prototype_mapping: List[Dict] = None,
     ):
         """
 
@@ -102,6 +102,8 @@ class EpisodeBatch(Episode):
         plot_graphs: bool = False,
         artificial_node_features: str = "",
     ) -> "EpisodeBatch":
+
+        label_to_prototype_mappings = None
 
         if add_prototype_nodes:
             # for each episode, get the label -> prototype node mapping and the aggregator -> prototype edges

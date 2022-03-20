@@ -1,6 +1,6 @@
 _target_: fs_grl.pl_modules.fully_graphical.FullyGraphical
 add_artificial_nodes: true
-variance_loss_weight: 0.0
+variance_loss_weight: 0.1
 
 optimizer:
   _target_: torch.optim.Adam
@@ -16,9 +16,9 @@ model:
     _target_: fs_grl.modules.node_embedder.NodeEmbedder
     feature_dim: ???
     num_mlp_layers: 2
-    embedding_dim: 32
-    hidden_dim: 32
-    num_convs: 5
+    embedding_dim: 64
+    hidden_dim: 64
+    num_convs: 3
     dropout_rate: 0.5
     do_preprocess: false
     use_batch_norm: false

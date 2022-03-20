@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: enzymes
+  - data: letterhigh
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -20,6 +20,7 @@ data:
   feature_params:
     features_to_consider:
       - degree
+#      - tags
 #      - num_cycles
     max_considered_cycle_len: 4
 
@@ -33,31 +34,13 @@ data:
   max_difficult_step: 10000
   plot_graphs: false
 
-  train_episode_hparams:
-    _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 15
-    num_classes_per_episode: 3
-    num_supports_per_class: 10
-
-  val_episode_hparams:
-    _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 5
-    num_classes_per_episode: 3
-    num_supports_per_class: 5
-
-  test_episode_hparams:
-    _target_: fs_grl.data.episode.EpisodeHParams
-    num_queries_per_class: 15
-    num_classes_per_episode: 3
-    num_supports_per_class: 10
-
   num_train_episodes: 2000
   num_test_episodes: 500
   support_ratio: 0.8
 
   separated_query_support: false
   query_support_split_path: null
-  train_ratio: 0.9
+  train_ratio: 0.85
 
   gpus: ${train.trainer.gpus}
 

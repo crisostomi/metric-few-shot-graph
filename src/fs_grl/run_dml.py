@@ -1,10 +1,11 @@
+import hashlib
 import logging
 from typing import Dict, List
 
 import hydra
 import omegaconf
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Callback
 
 from nn_core.callbacks import NNTemplateCore
@@ -21,6 +22,30 @@ from fs_grl.utils import handle_fast_dev_run
 # Force the execution of __init__.py if this file is executed directly.
 
 pylogger = logging.getLogger(__name__)
+
+
+def add_run_digest(cfg, keys_to_ignore):
+    OmegaConf.set_struct(cfg, True)
+
+    hash_builder = hashlib.sha256()
+
+    cfg_as_dict = OmegaConf.to_container(cfg)
+    get_run_digest(cfg_as_dict, keys_to_ignore, hash_builder)
+    run_digest = hash_builder.hexdigest()
+    with open_dict(cfg):
+        cfg["digest"] = run_digest
+
+
+def get_run_digest(cfg, keys_to_ignore, hash_builder):
+
+    for key, value in cfg.items():
+        if key in keys_to_ignore:
+            continue
+        elif isinstance(value, Dict):
+            get_run_digest(value, keys_to_ignore, hash_builder)
+        else:
+            key_value = str(key) + str(value)
+            hash_builder.update(key_value.encode("utf-8"))
 
 
 def run(cfg: DictConfig) -> str:
@@ -54,6 +79,20 @@ def run(cfg: DictConfig) -> str:
     )
     callbacks: List[Callback] = build_callbacks(cfg.train["distance-metric-learning-callbacks"], template_core)
 
+    keys_to_ignore = {
+        "seed_index",
+        "tags",
+        "data_dir",
+        "classes_split_path",
+        "prototypes_path",
+        "best_model_path",
+        "storage_dir",
+        "colors_path",
+        "entity",
+        "log_model",
+        "job",
+    }
+    add_run_digest(cfg, keys_to_ignore)
     logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
 
     pylogger.info("Instantiating the <Trainer>")
@@ -66,6 +105,8 @@ def run(cfg: DictConfig) -> str:
     )
 
     pylogger.info("Starting training!")
+    pylogger.info(f"Digest: {cfg['digest']}")
+
     trainer.fit(model=model, datamodule=datamodule)
 
     if fast_dev_run:
