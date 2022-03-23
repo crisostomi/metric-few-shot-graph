@@ -86,12 +86,12 @@ class NodeEmbedder(nn.Module):
 
         for conv in self.convs:
             h = conv(h, edge_index)
-            self.dropout(h)
             jump_xs.append(h)
 
         if self.jump_mode != "none":
             h = self.jumping_knowledge(jump_xs)
 
+        self.dropout(h)
         # out ~ (num_nodes_in_batch, output_dim)
         node_out_features = self.mlp(h)
 
