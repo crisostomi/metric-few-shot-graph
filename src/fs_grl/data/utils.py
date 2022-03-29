@@ -69,7 +69,7 @@ def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
     """
     res = {}
     for sample in annotated_samples:
-        res.setdefault(sample.y.item(), []).append(sample)
+        res.setdefault(sample["nodes"].y.item(), []).append(sample)
     return res
 
 

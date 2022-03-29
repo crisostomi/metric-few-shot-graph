@@ -32,7 +32,7 @@ def compute_global_prototypes(
         all_label_embeddings = []
         for batch in dataloader:
             batch.to(model.device)
-            batch_embeddings = model.model._embed(batch)
+            batch_embeddings = model.model._embed(batch)["nodes"]
             all_label_embeddings.append(batch_embeddings)
 
         all_label_embeddings = torch.cat(all_label_embeddings, dim=0)

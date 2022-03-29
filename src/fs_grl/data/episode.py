@@ -1,4 +1,3 @@
-import copy
 import itertools
 from dataclasses import dataclass
 from typing import Dict, List, Union
@@ -105,12 +104,12 @@ class EpisodeBatch(Episode):
 
         label_to_prototype_mappings = None
 
-        if add_prototype_nodes:
-            # for each episode, get the label -> prototype node mapping and the aggregator -> prototype edges
-            episode_list = [copy.deepcopy(episode) for episode in episode_list]
-            all_prototype_edges, label_to_prototype_mappings = cls.handle_prototype_nodes_and_edges(
-                episode_list, episode_hparams, artificial_node_features
-            )
+        # if add_prototype_nodes:
+        #     # for each episode, get the label -> prototype node mapping and the aggregator -> prototype edges
+        #     episode_list = [copy.deepcopy(episode) for episode in episode_list]
+        #     all_prototype_edges, label_to_prototype_mappings = cls.handle_prototype_nodes_and_edges(
+        #         episode_list, episode_hparams, artificial_node_features
+        #     )
 
         # B * N * K
         supports: List[Data] = flatten([episode.supports for episode in episode_list])
@@ -123,10 +122,10 @@ class EpisodeBatch(Episode):
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
 
-        if add_prototype_nodes:
-            cls.update_supports_batch_with_prototype_edges(
-                supports_batch, episode_list, all_prototype_edges, episode_hparams
-            )
+        # if add_prototype_nodes:
+        #     cls.update_supports_batch_with_prototype_edges(
+        #         supports_batch, episode_list, all_prototype_edges, episode_hparams
+        #     )
 
         # shape (B*(N*Q)*N)
         cosine_targets = cls.get_cosine_targets(episode_list)
@@ -166,7 +165,7 @@ class EpisodeBatch(Episode):
             episode_cosine_targets = []
 
             for query, label in itertools.product(episode.queries, episode.global_labels):
-                query_label_similarity = (query.y.item() == label) * 2 - 1
+                query_label_similarity = (query["nodes"].y.item() == label) * 2 - 1
                 episode_cosine_targets.append(query_label_similarity)
 
             cosine_targets.append(torch.tensor(episode_cosine_targets, dtype=torch.long))
@@ -249,26 +248,26 @@ class EpisodeBatch(Episode):
         last_support = supports[-1]
 
         # add to the last sample a prototype node for each class
-        last_support.num_nodes += episode_hparams.num_classes_per_episode
+        last_support["nodes"].num_nodes += episode_hparams.num_classes_per_episode
 
-        feature_dim = last_support.x.shape[-1]
+        feature_dim = last_support["nodes"].x.shape[-1]
         # initialize the prototype features as ones
         if artificial_node_features == "ones":
             prototype_features = torch.ones((episode_hparams.num_classes_per_episode, feature_dim)).type_as(
-                last_support.x
+                last_support["nodes"].x
             )
         elif artificial_node_features == "zeros":
             prototype_features = torch.zeros((episode_hparams.num_classes_per_episode, feature_dim)).type_as(
-                last_support.x
+                last_support["nodes"].x
             )
         elif artificial_node_features == "mean":
-            support_features = torch.cat([support.x for support in supports], dim=0)
+            support_features = torch.cat([support["nodes"].x for support in supports], dim=0)
             prototype_features = torch.mean(support_features, dim=0).unsqueeze(0)
             prototype_features = prototype_features.repeat((episode_hparams.num_classes_per_episode, 1))
         else:
             raise NotImplementedError(f"Node features {artificial_node_features} not implemented.")
 
-        last_support.x = torch.cat((last_support.x, prototype_features), dim=0)
+        last_support["nodes"].x = torch.cat((last_support["nodes"].x, prototype_features), dim=0)
 
     @classmethod
     def get_label_to_prototype_mapping(cls, episode: Episode, cumulative_node_count: int):
@@ -312,7 +311,7 @@ class EpisodeBatch(Episode):
         # cumulative node count of support graphs in the episode
         local_cumulative_node_count = 0
         for ind, support in enumerate(supports):
-            label_prototype_node = label_to_prototype_mapping[support.y.item()]
+            label_prototype_node = label_to_prototype_mapping[support["nodes"].y.item()]
 
             local_cumulative_node_count += support.num_nodes
 
@@ -399,8 +398,8 @@ class EpisodeBatch(Episode):
 
     @property
     def feature_dim(self):
-        assert self.supports.x.shape[-1] == self.queries.x.shape[-1]
-        return self.supports.x.shape[-1]
+        assert self.supports["nodes"].x.shape[-1] == self.queries["nodes"].x.shape[-1]
+        return self.supports["nodes"].x.shape[-1]
 
     def plot_batch(self, batch: Batch, supports_or_queries: str):
         """

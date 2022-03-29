@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 from torch.nn import functional as F
-from torch_geometric.data import Data
+from torch_geometric.data import Data, HeteroData
 
 
 class Node:
@@ -360,45 +360,37 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
             nodes_global_to_local_map = {
                 global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
             }
+
+            node_features = get_node_features(graph_set=graph_set, node_attrs=node_attrs, graph_idx=graph_idx)
+
+            if add_aggregator_nodes:
+                if artificial_node_features == "ones":
+                    aggregator_features = torch.ones_like(node_features[0]).unsqueeze(0)
+                elif artificial_node_features == "zeros":
+                    aggregator_features = torch.zeros_like(node_features[0]).unsqueeze(0)
+                elif artificial_node_features == "mean":
+                    aggregator_features = torch.mean(torch.cat(node_features, dim=0), dim=0).unsqueeze(0)
+                else:
+                    raise NotImplementedError(f"Node features {artificial_node_features} not implemented")
+
             edge_indices = torch.tensor(graph_set["graph2edges"][graph_idx], dtype=torch.long)
             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
 
-            num_nodes = len(nodes_global_to_local_map)
-
             if add_aggregator_nodes:
-                aggregator_node_index = num_nodes
-                num_nodes += 1
+                aggregator_node_index = len(nodes_global_to_local_map)
                 aggregator_edges = torch.tensor(
-                    [(node, aggregator_node_index) for node in range(0, aggregator_node_index)]
+                    [(node, aggregator_node_index) for node in range(0, aggregator_node_index)], dtype=torch.long
                 )
-                edge_indices = torch.cat((edge_indices, aggregator_edges), dim=0)
 
-            edge_index = edge_indices.t().contiguous()
-
-            G = create_networkx_graph(num_nodes, edge_indices)
-
-            node_features = get_node_features(
-                graph_set=graph_set,
-                node_attrs=node_attrs,
-                graph_idx=graph_idx,
-                add_aggregator_nodes=add_aggregator_nodes,
-                artificial_node_features=artificial_node_features,
+            data = HeteroData(
+                nodes={
+                    "x": torch.cat([node_features, aggregator_features], dim=0),
+                    "y": torch.tensor(cls, dtype=torch.long),
+                    "num_nodes": len(nodes_global_to_local_map) + 1,
+                },
+                nodes__edges__nodes={"edge_index": edge_indices.t().contiguous()},
+                nodes__is_aggregated__nodes={"edge_index": aggregator_edges.t().contiguous()},
             )
-            assert node_features.size(0) == num_nodes
-
-            if "num_cycles" in feature_params["features_to_consider"]:
-                num_cycles = get_num_cycles_from_nx(
-                    G, max_considered_cycle_len=feature_params["max_considered_cycle_len"]
-                )
-                node_features = torch.cat((node_features, num_cycles.t()), dim=1)
-
-            data = Data(
-                x=node_features,
-                edge_index=edge_index,
-                num_nodes=num_nodes,
-                y=torch.tensor(cls, dtype=torch.long),
-            )
-
             data_list.append(data)
 
     return data_list
@@ -415,7 +407,7 @@ def create_networkx_graph(num_nodes, edge_indices):
     return G
 
 
-def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes, artificial_node_features):
+def get_node_features(graph_set, node_attrs, graph_idx):
     node_features = []
 
     for node in graph_set["graph2nodes"][graph_idx]:
@@ -423,17 +415,6 @@ def get_node_features(graph_set, node_attrs, graph_idx, add_aggregator_nodes, ar
         if len(attr.size()) == 0:
             attr = attr.unsqueeze(0)
         node_features.append(attr)
-
-    if add_aggregator_nodes:
-        if artificial_node_features == "ones":
-            aggregator_features = torch.ones_like(node_features[0])
-        elif artificial_node_features == "zeros":
-            aggregator_features = torch.zeros_like(node_features[0])
-        elif artificial_node_features == "mean":
-            aggregator_features = torch.mean(torch.cat(node_features, dim=0), dim=0).unsqueeze(0)
-        else:
-            raise NotImplementedError(f"Node features {artificial_node_features} not implemented")
-        node_features.append(aggregator_features)
 
     return torch.stack(node_features)
 

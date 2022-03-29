@@ -2,8 +2,6 @@ import torch.nn as nn
 from torch.nn import Linear, ReLU, Sequential
 from torch_geometric.nn import GINConv, GraphNorm, JumpingKnowledge
 
-from fs_grl.modules.mlp import MLP
-
 
 class NodeEmbedder(nn.Module):
     def __init__(
@@ -59,17 +57,23 @@ class NodeEmbedder(nn.Module):
 
         self.dropout = nn.Dropout(p=dropout_rate)
 
-        self.mlp = MLP(
-            num_layers=num_mlp_layers,
-            input_dim=pooled_dim,
-            output_dim=self.embedding_dim,
-            hidden_dim=self.hidden_dim,
-            use_batch_norm=self.use_batch_norm,
+        # self.mlp = MLP(
+        #     num_layers=num_mlp_layers,
+        #     input_dim=pooled_dim,
+        #     output_dim=self.embedding_dim,
+        #     hidden_dim=self.hidden_dim,
+        #     use_batch_norm=self.use_batch_norm,
+        # )
+        self.mlp = Sequential(
+            Linear(pooled_dim, self.hidden_dim),
+            GraphNorm(self.hidden_dim) if self.use_batch_norm else nn.Identity(),
+            ReLU(),
+            Linear(self.hidden_dim, self.embedding_dim),
         )
 
         self.jumping_knowledge = JumpingKnowledge(mode=self.jump_mode) if self.jump_mode != "none" else None
 
-    def forward(self, batch):
+    def forward(self, X, edge_index):
         """
         Embeds a batch of graphs given as a single large graph
 
@@ -79,14 +83,14 @@ class NodeEmbedder(nn.Module):
 
         # X ~ (num_nodes_in_batch, feature_dim)
         # edge_index ~ (2, num_edges_in_batch)
-        X, edge_index = batch.x, batch.edge_index
+        # X, edge_index = batch.x, batch.edge_index
 
         h = self.preprocess_mlp(X) if self.do_preprocess else X
         jump_xs = [X, h] if self.do_preprocess else [X]
 
         for conv in self.convs:
             h = conv(h, edge_index)
-            self.dropout(h)
+            h = self.dropout(h)
             jump_xs.append(h)
 
         if self.jump_mode != "none":

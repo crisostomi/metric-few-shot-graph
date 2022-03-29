@@ -30,7 +30,14 @@ pylogger = logging.getLogger(__name__)
 
 
 class MetaData:
-    def __init__(self, class_to_label_dict, feature_dim, num_classes_per_episode: int, classes_split: Dict):
+    def __init__(
+        self,
+        class_to_label_dict,
+        feature_dim,
+        num_classes_per_episode: int,
+        classes_split: Dict,
+        heterogeneous_metadata,
+    ):
         """The data information the Lightning Module will be provided with.
         This is a "bridge" between the Lightning DataModule and the Lightning Module.
         There is no constraint on the class name nor in the stored information, as long as it exposes the
@@ -55,6 +62,7 @@ class MetaData:
         self.num_classes = len(class_to_label_dict)
         self.num_classes_per_episode = num_classes_per_episode
         self.classes_split = classes_split
+        self.heterogeneous_metadata = heterogeneous_metadata
 
     def save(self, dst_path: Path) -> None:
         """Serialize the MetaData attributes into the zipped checkpoint in dst_path.
@@ -68,6 +76,7 @@ class MetaData:
             "feature_dim": self.feature_dim,
             "num_classes_per_episode": self.num_classes_per_episode,
             "classes_split": self.classes_split,
+            "heterogeneous_metadata": self.heterogeneous_metadata,
         }
 
         (dst_path / "data.json").write_text(json.dumps(data, indent=4, default=lambda x: x.__dict__))
@@ -89,6 +98,7 @@ class MetaData:
             feature_dim=data["feature_dim"],
             num_classes_per_episode=data["num_classes_per_episode"],
             classes_split=data["classes_split"],
+            heterogeneous_metadata=data["heterogeneous_metadata"],
         )
 
 
@@ -224,17 +234,18 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             feature_dim=self.feature_dim,
             num_classes_per_episode=self.test_episode_hparams.num_classes_per_episode,
             classes_split=self.classes_split,
+            heterogeneous_metadata=self.data_list[0].metadata(),
         )
 
         return metadata
 
     def print_stats(self):
         pylogger.info(f"Read {len(self.data_list)} graphs.")
-        pylogger.info(f"With label distribution: {Counter(sample.y.item() for sample in self.data_list)}")
+        pylogger.info(f"With label distribution: {Counter(sample['nodes'].y.item() for sample in self.data_list)}")
 
     @property
     def feature_dim(self) -> int:
-        return self.data_list[0].x.shape[-1]
+        return self.data_list[0]["nodes"].x.shape[-1]
 
     def get_labels_split(self) -> Dict:
         """

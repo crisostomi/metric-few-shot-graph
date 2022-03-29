@@ -39,6 +39,7 @@ class FullyGraphical(MyLightningModule):
             feature_dim=self.metadata.feature_dim,
             num_classes=self.metadata.num_classes,
             num_classes_per_episode=self.metadata.num_classes_per_episode,
+            heterogeneous_metadata=self.metadata.heterogeneous_metadata,
             _recursive_=False,
         )
         self.variance_loss_weight = variance_loss_weight
@@ -103,7 +104,7 @@ class FullyGraphical(MyLightningModule):
         predictions = self.get_predictions(similarities, batch)
 
         for metric_name, metric in self.train_metrics.items():
-            metric_res = metric(preds=predictions, target=batch.queries.y)
+            metric_res = metric(preds=predictions, target=batch.queries["nodes"].y)
             self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
 
         return step_out
@@ -127,7 +128,7 @@ class FullyGraphical(MyLightningModule):
         predictions = self.get_predictions(similarities, batch)
 
         for metric_name, metric in self.val_metrics.items():
-            metric(preds=predictions, target=batch.queries.y)
+            metric(preds=predictions, target=batch.queries["nodes"].y)
 
         self.log_metrics(split="val", on_step=True, on_epoch=True, cm_reset=False)
 
@@ -148,7 +149,7 @@ class FullyGraphical(MyLightningModule):
         predictions = self.get_predictions(similarities, batch)
 
         for metric_name, metric in self.test_metrics.items():
-            metric(preds=predictions, target=batch.queries.y)
+            metric(preds=predictions, target=batch.queries["nodes"].y)
 
         self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 

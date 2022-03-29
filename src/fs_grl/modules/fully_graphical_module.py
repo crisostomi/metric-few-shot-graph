@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from hydra.utils import instantiate
 from torch_geometric.data import Batch
+from torch_geometric.nn import to_hetero
 
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.modules.losses.margin import MarginLoss
@@ -12,16 +13,22 @@ from fs_grl.modules.similarities.cosine import cosine
 
 
 class FullyGraphicalModule(nn.Module, abc.ABC):
-    def __init__(self, cfg, feature_dim, num_classes, margin, **kwargs):
+    def __init__(self, cfg, feature_dim, num_classes, margin, heterogeneous_metadata, **kwargs):
         super().__init__()
         self.cfg = cfg
 
         self.feature_dim = feature_dim
         self.num_classes = num_classes
 
-        self.embedder = instantiate(
+        embedder = instantiate(
             self.cfg.embedder,
             feature_dim=self.feature_dim,
+        )
+        # heterogeneous_metadata = tuple(heterogeneous_metadata)
+        self.embedder = to_hetero(
+            embedder,
+            (["nodes"], [("nodes", "edges", "nodes"), ("nodes", "is_aggregated", "nodes")]),
+            aggr="sum",
         )
 
         self.loss_func = MarginLoss(margin=margin, reduction="mean")
@@ -31,20 +38,19 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         # shape (num_support_nodes, embedding_dim)
         embedded_supports = self.embed_supports(batch.supports)
 
-        label_to_prototype_embed_map = self.get_label_to_prototype_embedding_mapping(
-            embedded_supports, batch.label_to_prototype_mapping
-        )
-
         embedded_queries = self.embed_queries(batch.queries)
 
-        query_aggregators = self.get_query_aggregator_embeddings(embedded_queries, batch)
+        embedded_supports_aggregator = embedded_supports["nodes"][batch.supports["nodes"].ptr[1:] - 1]
+        embedded_queries_aggregator = embedded_queries["nodes"][batch.queries["nodes"].ptr[1:] - 1]
 
-        similarities = self.get_similarities(query_aggregators, label_to_prototype_embed_map, batch)
+        class_prototypes = self.get_class_prototypes(embedded_supports_aggregator, batch=batch)
+
+        similarities = self.get_similarities(embedded_queries_aggregator, class_prototypes, batch)
 
         return {
-            "embedded_queries": query_aggregators,
-            "embedded_supports": embedded_supports,
-            "class_prototypes": label_to_prototype_embed_map,
+            "embedded_queries": embedded_queries_aggregator,
+            "embedded_supports": embedded_supports_aggregator,
+            "class_prototypes": class_prototypes,
             "similarities": similarities,
         }
 
@@ -71,7 +77,7 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         :return: embedded nodes composing the batch of graphs
         """
 
-        embedded_batch = self.embedder(batch)
+        embedded_batch = self.embedder(batch.x_dict, batch.edge_index_dict)
         return embedded_batch
 
     def get_similarities(self, embedded_queries: torch.Tensor, class_prototypes, batch: EpisodeBatch):
@@ -96,52 +102,65 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         return self.loss_func(similarities, batch.cosine_targets)
 
-    def get_label_to_prototype_embedding_mapping(
-        self, embedded_supports: torch.Tensor, label_to_prototype_idx_mapping: List[Dict]
-    ):
+    def get_class_prototypes(self, aggregator_supports: torch.Tensor, batch):
         """
         Return a list (num_episode) of dictionaries where each dictionary maps the global labels of an episode to the
         corresponding embedded prototype nodes
-
-        :param embedded_supports
-        :param label_to_prototype_idx_mapping: list (num_episodes) of dictionaries, each dictionary maps the global labels of
-                                               an episode to the corresponding prototype indices
-        """
-        return [
-            {key: embedded_supports[value] for key, value in label_to_prototype_mapping_by_episode.items()}
-            for label_to_prototype_mapping_by_episode in label_to_prototype_idx_mapping
-        ]
-
-    def get_query_aggregator_embeddings(self, embedded_queries: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
-        """
-        Return the embedded query aggregators.
-        :param embedded_queries: tensor ~ (B*N*Q, embedding_dim)
+        :param aggregators_supports:
         :param batch:
-        :return: embedded_aggregators: tensor ~ (B*N*Q*embedding_dim)
         """
 
-        aggregator_indices = batch.get_aggregator_indices("queries")
-        embedded_aggregators = embedded_queries[aggregator_indices]
+        assert aggregator_supports.shape[0] == batch.supports["nodes"].y.shape[0]
 
-        return embedded_aggregators
+        device = aggregator_supports.device
+
+        aggregators_per_episode = aggregator_supports.split(
+            tuple([batch.num_supports_per_episode] * batch.num_episodes)
+        )
+        labels_per_episode = batch.supports["nodes"].y.split(
+            tuple([batch.num_supports_per_episode] * batch.num_episodes)
+        )
+        classes_per_episode = batch.global_labels.split(
+            [batch.episode_hparams.num_classes_per_episode] * batch.num_episodes
+        )
+
+        all_class_prototypes = []
+        for episode in range(batch.num_episodes):
+
+            embedded_aggregator = aggregators_per_episode[episode]
+            labels = labels_per_episode[episode]
+            classes = classes_per_episode[episode]
+
+            class_prototypes_episode = {}
+            for cls in classes:
+                class_indices = torch.arange(len(labels), device=device)[labels == cls]
+                class_supports = torch.index_select(embedded_aggregator, dim=0, index=class_indices)
+                class_prototypes = class_supports.mean(dim=0)
+                class_prototypes_episode[cls.item()] = class_prototypes
+
+            all_class_prototypes.append(class_prototypes_episode)
+
+        return all_class_prototypes
 
     def align_queries_prototypes(
-        self, batch: EpisodeBatch, embedded_queries: torch.Tensor, class_prototypes: List[Dict[int, torch.Tensor]]
+        self, batch, embedded_queries: torch.Tensor, class_prototypes: List[Dict[int, torch.Tensor]]
     ):
         """
-
-        :param batch: EpisodeBatch
+        :param batch:
         :param embedded_queries: shape (num_queries_batch, hidden_dim)
-        :param class_prototypes: list (num_episodes) containing for each episode
-                                the mapping global label -> corresponding embedded prototype
+        :param class_prototypes:
         :return:
         """
+
+        num_queries_per_episode = (
+            batch.episode_hparams.num_queries_per_class * batch.episode_hparams.num_classes_per_episode
+        )
 
         num_episodes = batch.num_episodes
 
         batch_queries = []
         batch_prototypes = []
-        embedded_queries_per_episode = embedded_queries.split(tuple([batch.num_queries_per_episode] * num_episodes))
+        embedded_queries_per_episode = embedded_queries.split(tuple([num_queries_per_episode] * num_episodes))
 
         for episode in range(num_episodes):
 
@@ -157,13 +176,6 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         return {"queries": torch.cat(batch_queries, dim=0), "prototypes": torch.cat(batch_prototypes, dim=0)}
 
     def align_queries_prototypes_pairs(self, queries, prototypes_matrix, batch):
-        """
-
-        :param queries:
-        :param prototypes_matrix:
-        :param batch:
-        :return:
-        """
         # shape (num_queries_episode, hidden_dim)
 
         aligned_embedded_queries = queries.repeat_interleave(batch.episode_hparams.num_classes_per_episode, dim=0)
@@ -173,22 +185,12 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
         return aligned_embedded_queries, aligned_prototypes
 
     @classmethod
-    def get_prototype_matrix_from_dict(cls, label_to_prototype_embeddings: Dict) -> torch.Tensor:
-        """
-        Returns a matrix where row i contains the embedded class prototype
-        for the i-th label in the sorted array of global labels
+    def get_prototype_matrix_from_dict(cls, class_prototypes):
+        sorted_class_prototypes = [(global_class, prototype) for global_class, prototype in class_prototypes.items()]
+        sorted_class_prototypes.sort(key=lambda tup: tup[0])
+        sorted_class_prototypes_tensors = [tup[1] for tup in sorted_class_prototypes]
 
-        :param label_to_prototype_embeddings: mapping global label -> corresponding embedding
-        :return class_prototype_matrix: tensor (num_classes_episode, embedding_dim)
-        """
-
-        label_and_embedded_prototypes_tuples = [
-            (global_class, prototype) for global_class, prototype in label_to_prototype_embeddings.items()
-        ]
-        label_and_embedded_prototypes_tuples.sort(key=lambda tup: tup[0])
-        sorted_class_prototypes_tensors = [tup[1] for tup in label_and_embedded_prototypes_tuples]
-
-        # shape (num_classes_episode, embedding_dim)
+        # shape (num_classes_episode, hidden_dim)
         class_prototype_matrix = torch.stack(sorted_class_prototypes_tensors)
 
         return class_prototype_matrix

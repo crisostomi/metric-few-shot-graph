@@ -6,6 +6,7 @@ core:
   tags:
     - fully-graphical
     - no-batch-norm
+    - heterogeneous
 
 defaults:
   - hydra: default
