@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Linear, ReLU, Sequential
 from torch_geometric.nn import GINConv, GraphMultisetTransformer, JumpingKnowledge, global_add_pool
-from torch_scatter import scatter_std, scatter_add
+from torch_scatter import scatter_add, scatter_std
 
 from fs_grl.modules.mlp import MLP
 
@@ -114,7 +114,6 @@ class GNNEmbedder(nn.Module):
 
         for conv in self.convs:
             h = conv(h, edge_index)
-            self.dropout(h)
             jump_xs.append(h)
 
         h = self.jumping_knowledge(jump_xs)

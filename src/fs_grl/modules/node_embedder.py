@@ -91,7 +91,7 @@ class NodeEmbedder(nn.Module):
         if self.jump_mode != "none":
             h = self.jumping_knowledge(jump_xs)
 
-        self.dropout(h)
+        h = self.dropout(h)
         # out ~ (num_nodes_in_batch, output_dim)
         node_out_features = self.mlp(h)
 
