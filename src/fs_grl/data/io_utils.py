@@ -77,16 +77,21 @@ def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator
     data_list = []
 
     for G in graph_list:
-        edge_index = get_edge_index_from_nx(G, add_aggregator_nodes)
+        edge_indices, aggregator_edges = get_edge_index_from_nx(G, add_aggregator_nodes)
         label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
 
-        data = Data(
-            edge_index=edge_index,
-            num_nodes=G.number_of_nodes(),
-            y=label,
-            degrees=get_degree_tensor_from_nx(G),
-            tags=get_tag_tensor_from_nx(G),
-            num_cycles=get_num_cycles_from_nx(G, feature_params["max_considered_cycle_len"]),
+        data = HeteroData(
+            nodes={
+                "x": None,
+                "y": label,
+                "degrees": get_degree_tensor_from_nx(G),
+                "tags": get_tag_tensor_from_nx(G),
+                "num_cycles": get_num_cycles_from_nx(G, feature_params["max_considered_cycle_len"]),
+                "num_nodes": G.number_of_nodes(),
+            },
+            aggregator={"x": None, "num_nodes": 1},
+            nodes__edges__nodes={"edge_index": edge_indices.t().contiguous()},
+            nodes__is_aggregated__aggregator={"edge_index": aggregator_edges.t().contiguous()},
         )
 
         data_list.append(data)
@@ -209,22 +214,21 @@ def set_node_features(
     all_node_features = []
 
     if "tag" in feature_params["features_to_consider"]:
-        all_tags = torch.cat([data.tags for data in data_list], 0)
+        all_tags = torch.cat([data["nodes"].tags for data in data_list], 0)
         one_hot_tags = get_one_hot_attrs(all_tags, data_list)
         all_node_features = initialize_or_concatenate(all_node_features, one_hot_tags)
 
     if "degree" in feature_params["features_to_consider"]:
-        all_degrees = torch.cat([data.degrees for data in data_list], 0)
+        all_degrees = torch.cat([data["nodes"].degrees for data in data_list], 0)
         one_hot_degrees = get_one_hot_attrs(all_degrees, data_list)
         all_node_features = initialize_or_concatenate(all_node_features, one_hot_degrees)
 
     if "num_cycles" in feature_params["features_to_consider"]:
         for k in range(1, feature_params["max_considered_cycle_len"]):
-            num_cycles = [data.num_cycles[k] for data in data_list]
+            num_cycles = [data["nodes"].num_cycles[k] for data in data_list]
             all_node_features = initialize_or_concatenate(all_node_features, num_cycles)
 
     for data, node_features in zip(data_list, all_node_features):
-        assert data.num_nodes == node_features.shape[0]
         if add_aggregator_nodes:
 
             if artificial_node_features == "zeros":
@@ -236,14 +240,11 @@ def set_node_features(
             else:
                 raise NotImplementedError(f"Node features {artificial_node_features} not implemented")
 
-            data.num_nodes = data.num_nodes + 1
-            node_features = torch.cat((node_features, aggregator_node_features), dim=0)
-        data["x"] = node_features
-        # TODO: check if this must be updated when adding aggregator edges
-        data["num_sample_edges"] = data.edge_index.shape[1]
-        data["degrees"] = None
-        data["tags"] = None
-        data["num_cycles"] = None
+            data["aggregator"].x = aggregator_node_features
+        data["nodes"].x = node_features
+        data["nodes"].degrees = None
+        data["nodes"].tags = None
+        data["nodes"].num_cycles = None
 
 
 def initialize_or_concatenate(all_node_features, feature_to_add):
@@ -277,11 +278,11 @@ def get_one_hot_attrs(attrs, data_list):
     pointer = 0
 
     for data in data_list:
-        hots = torch.LongTensor(corrs[pointer : pointer + data.num_nodes])
+        hots = torch.LongTensor(corrs[pointer : pointer + data["nodes"].num_nodes])
         data_one_hot_attrs = F.one_hot(hots, num_different_attrs).float()
 
         all_one_hot_attrs.append(data_one_hot_attrs)
-        pointer += data.num_nodes
+        pointer += data["nodes"].num_nodes
 
     return all_one_hot_attrs
 
@@ -296,15 +297,16 @@ def get_edge_index_from_nx(G: nx.Graph, add_aggregator_nodes=False) -> Tensor:
     edges_tensor = torch.tensor(list([(edge[0], edge[1]) for edge in G.edges]), dtype=torch.long)
     edges_tensor_reverse = torch.tensor(list([(edge[1], edge[0]) for edge in G.edges]), dtype=torch.long)
 
-    edge_index = torch.cat((edges_tensor, edges_tensor_reverse), dim=0)
+    edge_indices = torch.cat((edges_tensor, edges_tensor_reverse), dim=0)
 
     # aggregator node is in the last index
-    aggregator_node_index = G.number_of_nodes()
+    aggregator_node_index = 0
     if add_aggregator_nodes:
-        aggregator_edges = torch.tensor([(node, aggregator_node_index) for node in range(0, aggregator_node_index)])
-        edge_index = torch.cat((edge_index, aggregator_edges), dim=0)
+        aggregator_edges = torch.tensor(
+            [(node, aggregator_node_index) for node in range(0, G.number_of_nodes())], dtype=torch.long
+        )
 
-    return edge_index.t().contiguous()
+    return edge_indices, aggregator_edges
 
 
 def get_classes_to_label_dict(graph_list) -> Dict:
@@ -377,19 +379,20 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
 
             if add_aggregator_nodes:
-                aggregator_node_index = len(nodes_global_to_local_map)
+                aggregator_node_index = 0
                 aggregator_edges = torch.tensor(
-                    [(node, aggregator_node_index) for node in range(0, aggregator_node_index)], dtype=torch.long
+                    [(node, aggregator_node_index) for node in range(0, len(nodes_global_to_local_map))],
+                    dtype=torch.long,
                 )
 
             data = HeteroData(
                 nodes={
-                    "x": torch.cat([node_features, aggregator_features], dim=0),
+                    "x": node_features,
                     "y": torch.tensor(cls, dtype=torch.long),
-                    "num_nodes": len(nodes_global_to_local_map) + 1,
                 },
+                aggregator={"x": aggregator_features},
                 nodes__edges__nodes={"edge_index": edge_indices.t().contiguous()},
-                nodes__is_aggregated__nodes={"edge_index": aggregator_edges.t().contiguous()},
+                nodes__is_aggregated__aggregator={"edge_index": aggregator_edges.t().contiguous()},
             )
             data_list.append(data)
 

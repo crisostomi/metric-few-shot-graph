@@ -1,5 +1,4 @@
 import math
-import operator
 from itertools import groupby
 from random import shuffle
 from typing import Dict, Iterable, List, Tuple
@@ -44,7 +43,7 @@ def random_split_bucketed(sequence: List, split_ratio: float) -> Tuple[List, Lis
     :return:
     """
 
-    sequence_bucketed = groupby(sequence, key=operator.attrgetter("y"))
+    sequence_bucketed = groupby(sequence, key=lambda x: x["nodes"].y)
 
     split_sequence_1 = []
     split_sequence_2 = []

@@ -11,7 +11,7 @@
 defaults:
   - _self_
   - model: fully_graphical
-  - data: coildel
+  - data: triangles
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -50,6 +50,6 @@ data:
     test: 8
 
   batch_size:
-    train: 16
-    val: 16
-    test: 16
+    train: 32
+    val: 32
+    test: 32

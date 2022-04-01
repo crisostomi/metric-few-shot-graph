@@ -2,6 +2,7 @@ import json
 import logging
 from abc import ABC
 from collections import Counter
+from functools import cached_property
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
@@ -218,7 +219,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
 
         self.train_ratio = train_ratio
 
-    @property
+    @cached_property
     def metadata(self) -> MetaData:
         """Data information to be fed to the Lightning Module as parameter.
         Examples are vocabularies, number of classes...

@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import hydra
 import omegaconf
@@ -16,7 +16,7 @@ from nn_core.serialization import NNCheckpointIO
 
 import fs_grl  # noqa
 from fs_grl.callbacks import build_callbacks
-from fs_grl.data.datamodule import GraphFewShotDataModule
+from fs_grl.data.datamodule import GraphFewShotDataModule, MetaData
 from fs_grl.utils import handle_fast_dev_run
 
 # Force the execution of __init__.py if this file is executed directly.
@@ -67,7 +67,10 @@ def run(cfg: DictConfig) -> str:
     pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
     datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
 
-    metadata: Dict = getattr(datamodule, "metadata", None)
+    # TODO: add on main branch
+    metadata: Optional[MetaData] = getattr(datamodule, "metadata", None)
+    if metadata is None:
+        pylogger.warning(f"No 'metadata' attribute found in datamodule <{datamodule.__class__.__name__}>")
 
     pylogger.info(f"Instantiating <{cfg.nn.model['_target_']}>")
     model: pl.LightningModule = hydra.utils.instantiate(

@@ -48,9 +48,8 @@ class TSNEPlot(Callback):
         for batch in dataloader:
             batch.to(pl_module.device)
 
-            embedded_sample = embedder(batch.x_dict, batch.edge_index_dict)["nodes"]
-            aggregator_indices = batch["nodes"].ptr[1:] - 1
-            embedded_sample = embedded_sample[aggregator_indices]
+            # TODO: check during merge
+            embedded_sample = embedder(batch.x_dict, batch.edge_index_dict)["aggregator"]
 
             embeddings.append(embedded_sample.cpu())
             classes.append(batch["nodes"].y.cpu())

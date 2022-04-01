@@ -24,10 +24,10 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
             self.cfg.embedder,
             feature_dim=self.feature_dim,
         )
-        # heterogeneous_metadata = tuple(heterogeneous_metadata)
+        # heterogeneous_metadata = tuple([metadata for metadata in heterogeneous_metadata])
         self.embedder = to_hetero(
             embedder,
-            (["nodes"], [("nodes", "edges", "nodes"), ("nodes", "is_aggregated", "nodes")]),
+            (["nodes", "aggregator"], [("nodes", "edges", "nodes"), ("nodes", "is_aggregated", "aggregator")]),
             aggr="sum",
         )
 
@@ -40,8 +40,9 @@ class FullyGraphicalModule(nn.Module, abc.ABC):
 
         embedded_queries = self.embed_queries(batch.queries)
 
-        embedded_supports_aggregator = embedded_supports["nodes"][batch.supports["nodes"].ptr[1:] - 1]
-        embedded_queries_aggregator = embedded_queries["nodes"][batch.queries["nodes"].ptr[1:] - 1]
+        # TODO: check during merge
+        embedded_supports_aggregator = embedded_supports["aggregator"]
+        embedded_queries_aggregator = embedded_queries["aggregator"]
 
         class_prototypes = self.get_class_prototypes(embedded_supports_aggregator, batch=batch)
 
