@@ -253,9 +253,7 @@ def initialize_or_concatenate(all_node_features, feature_to_add):
 
     num_graphs = len(all_node_features)
 
-    new_all_node_features = [
-        torch.cat((all_node_features[i], feature_to_add[i].unsqueeze(1)), dim=1) for i in range(num_graphs)
-    ]
+    new_all_node_features = [torch.cat((all_node_features[i], feature_to_add[i]), dim=1) for i in range(num_graphs)]
 
     return new_all_node_features
 

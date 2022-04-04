@@ -10,8 +10,8 @@
 
 defaults:
   - _self_
-  - model: fully_graphical
-  - data: triangles
+  - model: gnn_embedding_cosine
+  - data: enzymes
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -20,7 +20,7 @@ data:
   feature_params:
     features_to_consider:
       - degree
-#      - tags
+      - tag
 #      - num_cycles
     max_considered_cycle_len: 4
 
