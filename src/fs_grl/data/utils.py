@@ -1,6 +1,4 @@
 import math
-import operator
-from itertools import groupby
 from random import shuffle
 from typing import Dict, Iterable, List, Tuple
 
@@ -44,12 +42,12 @@ def random_split_bucketed(sequence: List, split_ratio: float) -> Tuple[List, Lis
     :return:
     """
 
-    sequence_bucketed = groupby(sequence, key=operator.attrgetter("y"))
+    sequence_bucketed = get_label_to_samples_map(sequence)
 
     split_sequence_1 = []
     split_sequence_2 = []
 
-    for key, subseq in sequence_bucketed:
+    for key, subseq in sequence_bucketed.items():
         split_subseq_1, split_subseq_2 = random_split_sequence(list(subseq), split_ratio)
         split_sequence_1.append(split_subseq_1)
         split_sequence_2.append(split_subseq_2)
