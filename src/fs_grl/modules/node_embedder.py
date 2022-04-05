@@ -49,6 +49,7 @@ class NodeEmbedder(nn.Module):
                     GraphNorm(self.hidden_dim) if self.use_batch_norm else nn.Identity(),
                     ReLU(),
                     Linear(self.hidden_dim, self.hidden_dim),
+                    GraphNorm(self.hidden_dim) if self.use_batch_norm else nn.Identity(),
                     ReLU(),
                 )
             )
