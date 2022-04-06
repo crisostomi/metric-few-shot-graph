@@ -13,6 +13,7 @@ from sklearn.manifold import TSNE
 from torch_geometric.loader import DataLoader
 
 from fs_grl.data.utils import get_label_to_samples_map
+from fs_grl.modules.node_embedder import NodeEmbedder
 
 pylogger = logging.getLogger(__name__)
 
@@ -37,9 +38,9 @@ class TSNEPlot(Callback):
         val_dataset = self.sample_data_tsne(val_dataset, self.samples_per_class)
         novel_dataset = self.sample_data_tsne(novel_dataset, self.samples_per_class)
 
-        base_novel_dataset = train_dataset + val_dataset + novel_dataset
+        dataset = train_dataset + val_dataset + novel_dataset
 
-        dataloader = DataLoader(base_novel_dataset)
+        dataloader = DataLoader(dataset)
         embedder = pl_module.model.embedder
         embedder.eval()
 
@@ -49,8 +50,9 @@ class TSNEPlot(Callback):
             batch.to(pl_module.device)
 
             embedded_sample = embedder(batch)
-            aggregator_indices = batch.ptr[1:] - 1
-            embedded_sample = embedded_sample[aggregator_indices]
+            if isinstance(embedder, NodeEmbedder):
+                aggregator_indices = batch.ptr[1:] - 1
+                embedded_sample = embedded_sample[aggregator_indices]
 
             embeddings.append(embedded_sample.cpu())
             classes.append(batch.y.cpu())
