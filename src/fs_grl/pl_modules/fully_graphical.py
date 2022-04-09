@@ -12,7 +12,6 @@ from nn_core.model_logging import NNLogger
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.pl_modules.pl_module import MyLightningModule
-from fs_grl.utils import compute_global_prototypes
 
 pylogger = logging.getLogger(__name__)
 
@@ -21,7 +20,13 @@ class FullyGraphical(MyLightningModule):
     logger: NNLogger
 
     def __init__(
-        self, train_data_list_by_label, variance_loss_weight, metadata: Optional[MetaData] = None, *args, **kwargs
+        self,
+        train_data_list_by_label,
+        variance_loss_weight,
+        artificial_regularizer_weight,
+        metadata: Optional[MetaData] = None,
+        *args,
+        **kwargs,
     ) -> None:
         super().__init__()
 
@@ -42,6 +47,7 @@ class FullyGraphical(MyLightningModule):
             _recursive_=False,
         )
         self.variance_loss_weight = variance_loss_weight
+        self.artificial_regularizer_weight = artificial_regularizer_weight
 
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))
@@ -61,8 +67,6 @@ class FullyGraphical(MyLightningModule):
 
         self.base_prototypes = {}
         self.train_data_list_by_label = train_data_list_by_label
-        # TODO: do the wiring
-        self.alpha = 0.3
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """ """
@@ -75,27 +79,10 @@ class FullyGraphical(MyLightningModule):
 
         model_out = self(batch)
 
-        if self.training:
-
-            global_label_pairs_by_episode = self.get_global_label_pairs(batch.global_labels, batch)
-
-            for episode in range(batch.num_episodes):
-
-                episode_global_labels = global_label_pairs_by_episode[episode]
-
-                for pair in episode_global_labels:
-
-                    class_a, class_b = pair
-                    # class_a_query = self.sample_query_embedding_from_batch(class_a)
-                    # class_b_query = self.sample_query_embedding_from_batch(class_b)
-                    #
-                    # gating_vector = self.construct_gating_vector()
-                    # artificial_sample = gating_vector * q1 + gating_vector * q2
-                    # artificial_sample_class_prob_distr = get_similarities(artificial_samples, prototypes)
-                    # class_prob_distr_q1 = ...
-                    # class_prob_distr_q2 = ...
-            # ground_truth_combination = alpha * class_prob_distr_q1 + (1 - alpha) * class_prob_distr_q2
-            # loss = l2(artificial_sample_class_prob_distr, ground_truth_combination)
+        regularizer_term = 0
+        if self.training and self.artificial_regularizer_weight > 0:
+            regularizer_term = self.compute_crossover_regularizer(model_out, batch)
+            self.log_dict({"loss/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
 
         margin_loss = self.model.compute_loss(model_out, batch)
         intra_class_variance = (
@@ -107,7 +94,11 @@ class FullyGraphical(MyLightningModule):
         self.log_dict({f"loss/margin_loss/{split}": margin_loss}, on_epoch=True, on_step=True)
         self.log_dict({f"loss/intra_class_variance/{split}": intra_class_variance}, on_epoch=True, on_step=True)
 
-        loss = margin_loss + self.variance_loss_weight * intra_class_variance
+        loss = (
+            margin_loss
+            + self.variance_loss_weight * intra_class_variance
+            + self.artificial_regularizer_weight * regularizer_term
+        )
 
         self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
 
@@ -132,9 +123,9 @@ class FullyGraphical(MyLightningModule):
 
         return step_out
 
-    def on_train_end(self) -> None:
-        base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
-        self.base_prototypes = base_prototypes
+    # def on_train_end(self) -> None:
+    #     base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
+    #     self.base_prototypes = base_prototypes
 
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
@@ -144,7 +135,7 @@ class FullyGraphical(MyLightningModule):
             step_out["model_out"]["class_prototypes"],
         )
 
-        similarities = self.model.get_prediction_similarities(embedded_queries, class_prototypes, batch)
+        similarities = self.model.get_queries_prototypes_similarities_batch(embedded_queries, class_prototypes, batch)
 
         # similarities = step_out["similarities"]
 
@@ -229,28 +220,3 @@ class FullyGraphical(MyLightningModule):
         mapped_labels = torch.cat(mapped_labels, dim=0)
 
         return mapped_labels
-
-    def get_global_label_pairs(self, global_labels, batch: EpisodeBatch):
-        global_labels_by_episode = global_labels.split(
-            tuple([batch.episode_hparams.num_classes_per_episode] * batch.num_episodes)
-        )
-
-        pairs_by_episode = []
-
-        for episode in range(batch.num_episodes):
-            episode_pairs = []
-
-            episode_global_labels = global_labels_by_episode[episode]
-            for ind_a, label_a in enumerate(episode_global_labels):
-
-                for ind_b, label_b in enumerate(episode_global_labels[ind_a + 1 :]):
-
-                    episode_pairs.append((label_a, label_b))
-
-            pairs_by_episode.append(episode_pairs)
-
-        return pairs_by_episode
-
-    def construct_gating_vector(self):
-
-        return torch.randint(low=0, high=2, size=(self.metadata.feature_dim))

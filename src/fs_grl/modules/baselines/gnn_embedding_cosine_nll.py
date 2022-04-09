@@ -1,7 +1,8 @@
 import torch
 from torch.nn import NLLLoss
 
-from fs_grl.modules.gnn_embedding_similarity import GNNEmbeddingSimilarity
+from fs_grl.data.episode import EpisodeBatch
+from fs_grl.modules.baselines.gnn_embedding_similarity import GNNEmbeddingSimilarity
 from fs_grl.modules.similarities.cosine import cosine
 
 
@@ -10,11 +11,14 @@ class GNNEmbeddingCosineNLL(GNNEmbeddingSimilarity):
         super().__init__(cfg, feature_dim=feature_dim, num_classes=num_classes, **kwargs)
         self.loss_func = NLLLoss()
 
-    def get_similarities(self, embedded_queries, class_prototypes, batch):
+    def get_queries_prototypes_similarities_batch(
+        self, embedded_queries: torch.Tensor, class_prototypes: torch.Tensor, batch: EpisodeBatch
+    ):
         """
 
-        :param batch_queries ~ (num_queries_batch*num_classes, hidden_dim)
-        :param batch_prototypes ~ (num_queries_batch*num_classes, hidden_dim)
+        :param embedded_queries ~ (num_queries_batch*num_classes, hidden_dim)
+        :param class_prototypes ~ (num_queries_batch*num_classes, hidden_dim)
+
         :return:
         """
         batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
@@ -39,3 +43,17 @@ class GNNEmbeddingCosineNLL(GNNEmbeddingSimilarity):
 
         cum_loss /= batch.num_episodes
         return cum_loss
+
+    def get_sample_prototypes_similarities(
+        self, sample: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
+    ) -> torch.Tensor:
+        """
+        :param sample:
+        :param prototypes:
+        :param batch:
+        :return:
+        """
+        N = batch.episode_hparams.num_classes_per_episode
+        repeated_sample = sample.repeat((N, 1))
+
+        return cosine(repeated_sample, prototypes)

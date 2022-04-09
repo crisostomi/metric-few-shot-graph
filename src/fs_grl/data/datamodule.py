@@ -366,11 +366,6 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             split_samples = self.split_base_novel_samples()
             base_samples, val_samples = split_samples["base"], split_samples["val"]
 
-            # if "val" in split_samples.keys():
-            #     base_samples_train, samples_val = base_samples, split_samples["val"]
-            # else:
-            #     base_samples_train, samples_val = random_split_bucketed(base_samples, self.train_ratio)
-
             if self.separated_query_support:
                 base_samples = self.split_query_support(base_samples)
 

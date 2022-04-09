@@ -4,7 +4,7 @@ from torch_geometric.nn import GraphNorm
 
 
 class MLP(nn.Module):
-    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim, non_linearity="relu", use_batch_norm=True):
+    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim, non_linearity, use_batch_norm=True):
         """
         num_layers: number of layers in the neural networks
                     If num_layers=1, this reduces to linear model.
@@ -33,7 +33,7 @@ class MLP(nn.Module):
             if self.use_batch_norm:
                 self.batch_norms.append(GraphNorm((hidden_sizes[layer])))
 
-        self.non_linearity = self.get_non_linearity(non_linearity)
+        self.non_linearity = non_linearity
 
     def forward(self, x):
         h = x
@@ -46,11 +46,3 @@ class MLP(nn.Module):
 
         output = self.linears[-1](h)
         return output
-
-    def get_non_linearity(self, non_linearity):
-        if non_linearity == "relu":
-            return nn.ReLU()
-        elif non_linearity == "tanh":
-            return nn.Tanh()
-        else:
-            raise NotImplementedError(f"No such activation {non_linearity}")

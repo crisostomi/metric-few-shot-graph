@@ -1,0 +1,3 @@
+_target_: fs_grl.modules.pooling.addvar
+in_features: ${nn.model.model.embedder.node_embedder.embedding_dim}
+out_features: ${nn.model.model.embedder.node_embedder.embedding_dim}

@@ -6,7 +6,7 @@ optimizer:
   lr: 5e-5
 
 model:
-  _target_: fs_grl.modules.gnn_embedding_log.GNNEmbeddingLog
+  _target_: fs_grl.modules.baselines.gnn_embedding_log.GNNEmbeddingLog
   feature_dim: ???
   num_classes: ???
   margin: 0.5

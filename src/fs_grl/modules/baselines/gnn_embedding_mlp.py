@@ -2,7 +2,7 @@ import torch
 from hydra.utils import instantiate
 from torch.nn import functional as F
 
-from fs_grl.modules.gnn_embedding_pairwise import GNNEmbeddingPairwise
+from fs_grl.modules.baselines.gnn_embedding_pairwise import GNNEmbeddingPairwise
 from fs_grl.modules.losses.margin import MarginLoss
 
 
@@ -18,7 +18,7 @@ class GNNEmbeddingMLP(GNNEmbeddingPairwise):
 
         self.loss_func = MarginLoss(margin=margin, reduction="mean")
 
-    def get_similarities(self, embedded_queries, class_prototypes, batch):
+    def get_queries_prototypes_similarities_batch(self, embedded_queries, class_prototypes, batch):
 
         batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
         batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]
