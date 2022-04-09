@@ -1,0 +1,5 @@
+_target_: torch_geometric.nn.GraphMultisetTransformer
+in_channels: ${nn.model.model.embedder.node_embedder.embedding_dim}
+hidden_channels: ${nn.model.model.embedder.node_embedder.embedding_dim}
+out_channels: ${nn.model.model.embedder.node_embedder.embedding_dim}
+num_nodes: 30

@@ -1,7 +1,7 @@
 import abc
 
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.modules.gnn_embedding_similarity import GNNEmbeddingSimilarity
+from fs_grl.modules.baselines.gnn_embedding_similarity import GNNEmbeddingSimilarity
 
 
 class GNNEmbeddingPairwise(GNNEmbeddingSimilarity, abc.ABC):

@@ -397,6 +397,15 @@ class EpisodeBatch(Episode):
 
             return aggregator_indices
 
+    def get_global_labels_by_episode(self):
+        return self.global_labels.split([self.episode_hparams.num_classes_per_episode] * self.num_episodes)
+
+    def get_support_labels_by_episode(self):
+        return self.supports.y.split([self.num_supports_per_episode] * self.num_episodes)
+
+    def get_query_labels_by_episode(self):
+        return self.queries.y.split(tuple([self.num_queries_per_episode] * self.num_episodes))
+
     @property
     def feature_dim(self):
         assert self.supports.x.shape[-1] == self.queries.x.shape[-1]

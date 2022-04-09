@@ -21,4 +21,3 @@ st.sidebar.subheader(f"Logged in W&B as: {wandb.api.viewer()['entity']}")
 
 checkpoint_path = select_checkpoint()
 model: DistanceMetricLearning = get_model(checkpoint_path=checkpoint_path)
-model

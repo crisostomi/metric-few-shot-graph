@@ -1,13 +1,14 @@
 _target_: fs_grl.pl_modules.fully_graphical.FullyGraphical
 add_artificial_nodes: true
 variance_loss_weight: 0.0
+artificial_regularizer_weight: 0.3
 
 optimizer:
   _target_: torch.optim.Adam
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.fully_graphical_module.FullyGraphicalModule
+  _target_: fs_grl.modules.baselines.fully_graphical_module.FullyGraphicalModule
   feature_dim: ???
   num_classes: ???
   margin: 0.5
@@ -19,7 +20,7 @@ model:
     embedding_dim: 64
     hidden_dim: 64
     num_convs: 5
-    dropout_rate: 0.5
+    dropout_rate: 0.
     do_preprocess: false
-    use_batch_norm: false
+    use_batch_norm: true
     jump_mode: cat

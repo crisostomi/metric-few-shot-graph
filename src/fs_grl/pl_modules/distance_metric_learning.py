@@ -20,7 +20,15 @@ pylogger = logging.getLogger(__name__)
 class DistanceMetricLearning(MyLightningModule):
     logger: NNLogger
 
-    def __init__(self, train_data_list_by_label, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        train_data_list_by_label,
+        artificial_regularizer_weight,
+        intra_class_variance_weight,
+        metadata: Optional[MetaData] = None,
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
@@ -39,6 +47,8 @@ class DistanceMetricLearning(MyLightningModule):
             num_classes_per_episode=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
+        self.artificial_regularizer_weight = artificial_regularizer_weight
+        self.intra_class_variance_weight = intra_class_variance_weight
 
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))
@@ -58,9 +68,6 @@ class DistanceMetricLearning(MyLightningModule):
 
         self.base_prototypes = {}
         self.train_data_list_by_label = train_data_list_by_label
-        # metrics computed without mapping
-        # self.test_metrics = nn.ModuleDict({"test/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
-        # self.val_metrics = nn.ModuleDict({"val/micro_acc": Accuracy(num_classes=metadata.num_classes_per_episode)})
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """
@@ -76,7 +83,25 @@ class DistanceMetricLearning(MyLightningModule):
 
         model_out = self(batch)
 
-        loss = self.model.compute_loss(model_out, batch)
+        regularizer_term = 0
+        if self.training and self.artificial_regularizer_weight > 0:
+            regularizer_term = self.model.compute_crossover_regularizer(model_out, batch)
+            self.log_dict({"loss/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
+
+        intra_class_variance_term = 0
+        if self.intra_class_variance_weight > 0:
+            intra_class_variance_term = self.model.get_intra_class_variance(
+                model_out["embedded_supports"], model_out["class_prototypes"], batch
+            )
+            self.log_dict({"loss/intra_class_variance": intra_class_variance_term}, on_epoch=True, on_step=True)
+
+        margin_loss = self.model.compute_loss(model_out, batch)
+
+        loss = (
+            margin_loss
+            + self.artificial_regularizer_weight * regularizer_term
+            + self.intra_class_variance_weight * intra_class_variance_term
+        )
 
         self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
 

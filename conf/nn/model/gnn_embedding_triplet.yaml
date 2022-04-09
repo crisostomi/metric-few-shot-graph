@@ -5,7 +5,7 @@ optimizer:
   lr: 5e-5
 
 model:
-  _target_: fs_grl.modules.gnn_embedding_triplet.GNNEmbeddingTriplet
+  _target_: fs_grl.modules.baselines.gnn_embedding_triplet.GNNEmbeddingTriplet
   feature_dim: ???
   num_classes: ???
   margin: 0.5

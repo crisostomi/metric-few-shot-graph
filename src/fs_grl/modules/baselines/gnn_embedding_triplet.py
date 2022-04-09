@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.modules.gnn_embedding_similarity import GNNEmbeddingSimilarity
+from fs_grl.modules.baselines.gnn_embedding_similarity import GNNEmbeddingSimilarity
 from fs_grl.modules.similarities.cosine import cosine, cosine_distance_1D
 
 
@@ -15,7 +15,7 @@ class GNNEmbeddingTriplet(GNNEmbeddingSimilarity):
             margin=margin, reduction="mean", distance_function=cosine_distance_1D
         )
 
-    def get_similarities(self, embedded_queries, class_prototypes, batch):
+    def get_queries_prototypes_similarities_batch(self, embedded_queries, class_prototypes, batch):
         """
 
         :param embedded_queries ~

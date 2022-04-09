@@ -4,7 +4,7 @@ optimizer:
   _target_: torch.optim.Adam
 
 model:
-  _target_: fs_grl.modules.gnn_embedding_mlp.GNNEmbeddingMLP
+  _target_: fs_grl.modules.baselines.gnn_embedding_mlp.GNNEmbeddingMLP
   feature_dim: ???
   num_classes: ???
   margin: 0.5
