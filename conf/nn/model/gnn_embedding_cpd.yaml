@@ -1,0 +1,38 @@
+defaults:
+  - pooling: mean
+  - _self_
+
+_target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
+artificial_regularizer_weight: 0.5
+intra_class_variance_weight: 0.0
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1e-4
+
+model:
+  _target_: fs_grl.modules.baselines.gnn_embedding_cpd.GNNEmbeddingCPD
+  feature_dim: ???
+  num_classes: ???
+  margin: 0.5
+
+  embedder:
+    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    pooling: null
+    feature_dim: ???
+
+    node_embedder:
+      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      feature_dim: ???
+      hidden_dim: 64
+      embedding_dim: 64
+      num_convs: 2
+      dropout_rate: 0.
+      do_preprocess: false
+      use_batch_norm: true
+      num_preproc_mlp_layers: 1
+      num_postproc_mlp_layers: 2
+      num_gin_mlp_layers: 1
+      jump_mode: cat
+      non_linearity:
+        _target_: torch.nn.ReLU
