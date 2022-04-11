@@ -15,9 +15,9 @@ class GraphEmbedder(nn.Module):
 
         self.node_embedder = instantiate(cfg.node_embedder, feature_dim=self.feature_dim, _recursive_=True)
 
-        self.pooling = instantiate(cfg.pooling)
+        self.pooling = instantiate(cfg.pooling) if cfg.pooling is not None else None
 
-        self.jumping_knowledge = JumpingKnowledge(mode="cat")
+        self.jumping_knowledge = JumpingKnowledge(mode="cat")  # TODO: maybe to delete
 
     @property
     def embedding_dim(self):
@@ -34,10 +34,12 @@ class GraphEmbedder(nn.Module):
         node_embeddings = self.node_embedder(batch)
 
         # pooled_out ~ (num_samples_in_batch, embedding_dim)
-        pooling_args = self.get_pooling_args(node_embeddings, batch)
-        pooled_out = self.pooling(**pooling_args)
+        if self.pooling is not None:
+            pooling_args = self.get_pooling_args(node_embeddings, batch)
+            pooled_out = self.pooling(**pooling_args)
+            return pooled_out
 
-        return pooled_out
+        return node_embeddings
 
     def get_pooling_args(self, node_out_features, batch):
         pooling_args = {"x": node_out_features, "batch": batch.batch}

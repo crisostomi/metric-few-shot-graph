@@ -19,6 +19,7 @@ class NodeEmbedder(nn.Module):
         use_batch_norm=True,
         jump_mode="cat",
         non_linearity=nn.ReLU,
+        **kwargs,
     ):
         super().__init__()
 
