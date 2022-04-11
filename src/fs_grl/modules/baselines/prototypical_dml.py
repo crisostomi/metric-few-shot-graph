@@ -55,14 +55,17 @@ class PrototypicalDML(abc.ABC, nn.Module):
         pass
 
     def align_queries_prototypes(
-        self, batch: EpisodeBatch, embedded_queries: torch.Tensor, class_prototypes: List[Dict[int, torch.Tensor]]
+        self,
+        batch: EpisodeBatch,
+        embedded_queries: torch.Tensor,
+        label_to_embedded_prototypes: List[Dict[int, torch.Tensor]],
     ) -> Dict[str, torch.Tensor]:
         """
         Aligns query and prototype embeddings, returning two matrices of shape (B*N*Q*N, embedding_dim)
 
         :param batch: EpisodeBatch
         :param embedded_queries: shape (num_queries_batch, hidden_dim)
-        :param class_prototypes: list (num_episodes) containing for each episode
+        :param label_to_embedded_prototypes: list (num_episodes) containing for each episode
                                 the mapping global label -> corresponding embedded prototype
         :return:
         """
@@ -75,7 +78,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
         batch_prototypes = []
         for episode in range(num_episodes):
 
-            class_prototype_matrix = self.get_prototype_matrix_from_dict(class_prototypes[episode])
+            class_prototype_matrix = self.get_prototype_matrix_from_dict(label_to_embedded_prototypes[episode])
 
             aligned_queries, aligned_prototypes = self.align_queries_prototypes_episode(
                 embedded_queries_per_episode[episode], class_prototype_matrix, batch
@@ -147,6 +150,8 @@ class PrototypicalDML(abc.ABC, nn.Module):
 
     def compute_crossover_regularizer(self, model_out: Dict, batch: EpisodeBatch):
         """
+        Computes the regularizer term for the artificial samples created as cross-over of samples
+        from different classes
 
         :param model_out:
         :param batch:
@@ -187,31 +192,36 @@ class PrototypicalDML(abc.ABC, nn.Module):
             label_b_query = self.sample_query_embedding(label_b, episode_query_embeddings, episode_query_labels, batch)
 
             alpha = torch.rand(1).type_as(label_a_query)
-            gating_vector = self.construct_gating_vector(alpha)
 
-            new_sample = gating_vector * label_a_query + (1 - gating_vector) * label_b_query
+            crossover = self.create_crossover(label_a_query, label_b_query, alpha)
 
-            new_sample_to_prototypes_similarities = self.compute_sample_prototypes_similarities(
-                new_sample, episode_prototypes, batch
-            )
-            new_sample_class_distr = torch.softmax(new_sample_to_prototypes_similarities, dim=-1)
-
-            label_a_query_to_prototypes_similarities = self.compute_sample_prototypes_similarities(
-                label_a_query, episode_prototypes, batch
-            )
-            label_a_class_distr = torch.softmax(label_a_query_to_prototypes_similarities, dim=-1)
-
-            label_b_query_to_prototypes_similarities = self.compute_sample_prototypes_similarities(
-                label_b_query, episode_prototypes, batch
-            )
-            label_b_class_distr = torch.softmax(label_b_query_to_prototypes_similarities, dim=-1)
+            crossover_class_distr = self.get_sample_class_distribution(crossover, episode_prototypes, batch)
+            label_a_class_distr = self.get_sample_class_distribution(label_a_query, episode_prototypes, batch)
+            label_b_class_distr = self.get_sample_class_distribution(label_b_query, episode_prototypes, batch)
 
             ground_truth_combination = alpha * label_a_class_distr + (1 - alpha) * label_b_class_distr
 
-            pair_regularizer_term = torch.norm(new_sample_class_distr - ground_truth_combination, p=2) ** 2
+            pair_regularizer_term = torch.norm(crossover_class_distr - ground_truth_combination, p=2) ** 2
             episode_regularizer_term += pair_regularizer_term
 
         return episode_regularizer_term
+
+    def create_crossover(self, sample_a: torch.Tensor, sample_b: torch.Tensor, alpha: torch.Tensor) -> torch.Tensor:
+        """
+        Creates a new sample which is the crossover of sample_a and sample_b
+
+        :param sample_a:
+        :param sample_b:
+        :param alpha:
+
+        :return:
+        """
+
+        gating_vector = self.construct_macro_features_gating_vector(alpha)
+
+        crossover = gating_vector * sample_a + (1 - gating_vector) * sample_b
+
+        return crossover
 
     def get_global_label_pairs(self, episode_global_labels):
         """
@@ -234,15 +244,58 @@ class PrototypicalDML(abc.ABC, nn.Module):
         :param alpha: mixing ratio
         :return:
         """
-        emb_dim = self.embedder.node_embedder.embedding_dim
+        emb_dim = self.embedder.embedding_dim
 
         num_features_to_sample = int(alpha * emb_dim)
         random_indices = np.random.choice(np.arange(0, emb_dim), size=num_features_to_sample)
 
         gating_vector = torch.zeros((emb_dim,)).type_as(alpha)
+
         gating_vector[random_indices] = 1
 
         return gating_vector
+
+    def construct_macro_features_gating_vector(self, alpha):
+        """
+        :param alpha: mixing ratio
+
+        :return:
+        """
+        emb_dim = self.embedder.embedding_dim
+
+        num_macro_features = np.random.choice(np.arange(10, emb_dim))
+        macro_feature_indices = np.arange(0, num_macro_features)
+
+        macro_feature_size = emb_dim // num_macro_features
+        num_macro_features_to_sample = int(alpha * num_macro_features)
+        random_bin_indices = (
+            np.random.choice(macro_feature_indices, size=num_macro_features_to_sample) * macro_feature_size
+        )
+        indices_repeated = np.repeat(random_bin_indices, axis=0, repeats=macro_feature_size)
+        addend = np.tile(np.arange(macro_feature_size), num_macro_features_to_sample)
+        feature_to_sample_indices = indices_repeated + addend
+
+        gating_vector = torch.zeros((emb_dim,)).type_as(alpha)
+
+        gating_vector[feature_to_sample_indices] = 1
+
+        return gating_vector
+
+    def get_sample_class_distribution(
+        self, sample: torch.Tensor, label_to_prototype_embeddings: Dict, batch: EpisodeBatch
+    ):
+        """
+        :param sample:
+        :param label_to_prototype_embeddings:
+        :param batch:
+        :return:
+        """
+        sampler_to_prototypes_similarities = self.compute_sample_prototypes_similarities(
+            sample, label_to_prototype_embeddings, batch
+        )
+        sample_class_distr = torch.softmax(sampler_to_prototypes_similarities, dim=-1)
+
+        return sample_class_distr
 
     def sample_query_embedding(
         self, label: torch.Tensor, query_embeddings: torch.Tensor, query_labels: torch.Tensor, batch: EpisodeBatch

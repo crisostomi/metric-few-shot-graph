@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 import torch
 
 from fs_grl.data.episode import EpisodeBatch
@@ -12,15 +14,17 @@ class GNNEmbeddingCosine(GNNEmbeddingPairwise):
         self.loss_func = MarginLoss(margin=margin, reduction="mean")
 
     def get_queries_prototypes_similarities_batch(
-        self, queries: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
+        self, queries: torch.Tensor, label_to_embedded_prototypes: List[Dict], batch: EpisodeBatch
     ):
         """
 
         :param queries ~
-        :param prototypes ~
+        :param label_to_embedded_prototypes ~
+        :param batch:
+
         :return:
         """
-        batch_queries_prototypes = self.align_queries_prototypes(batch, queries, prototypes)
+        batch_queries_prototypes = self.align_queries_prototypes(batch, queries, label_to_embedded_prototypes)
         batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]
 
         similarities = cosine(batch_queries, batch_prototypes)
