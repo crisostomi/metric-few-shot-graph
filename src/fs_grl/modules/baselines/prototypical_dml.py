@@ -13,14 +13,15 @@ class PrototypicalDML(abc.ABC, nn.Module):
     def __init__(self):
         super().__init__()
 
-    def embed_supports(self, batch: EpisodeBatch) -> torch.Tensor:
+    def embed_supports(self, batch: EpisodeBatch, graph_level=True) -> torch.Tensor:
         """
         :param batch: Batch containing BxNxK support graphs as a single large graph
-        :return: embedded supports ~ ((B*N*K)xE), each graph embedded as a point in R^{E}
+        :return: embedded supports ~ ((B*N*K), E), each graph embedded as a point in R^{E} if {graph_level},
+                              else ~ (num_support_nodes, E)
         """
-        return self._embed(batch.supports)
+        return self._embed(batch.supports) if graph_level else self.embedder.node_embedder(batch.supports)
 
-    def embed_queries(self, batch: EpisodeBatch) -> torch.Tensor:
+    def embed_queries(self, batch: EpisodeBatch, graph_level=True) -> torch.Tensor:
         """
         :param batch: Batch containing BxNxQ query graphs
         :return: embedded queries ~ (BxNxQxE), each graph embedded as a point in R^{E}

@@ -84,16 +84,18 @@ class DistanceMetricLearning(MyLightningModule):
         model_out = self(batch)
 
         regularizer_term = 0
-        if self.training and self.artificial_regularizer_weight > 0:
+        if self.artificial_regularizer_weight > 0:
             regularizer_term = self.model.compute_crossover_regularizer(model_out, batch)
-            self.log_dict({"loss/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
+            self.log_dict({f"loss/{split}/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
 
         intra_class_variance_term = 0
         if self.intra_class_variance_weight > 0:
             intra_class_variance_term = self.model.get_intra_class_variance(
                 model_out["embedded_supports"], model_out["class_prototypes"], batch
             )
-            self.log_dict({"loss/intra_class_variance": intra_class_variance_term}, on_epoch=True, on_step=True)
+            self.log_dict(
+                {f"loss/{split}/intra_class_variance": intra_class_variance_term}, on_epoch=True, on_step=True
+            )
 
         margin_loss = self.model.compute_loss(model_out, batch)
 
