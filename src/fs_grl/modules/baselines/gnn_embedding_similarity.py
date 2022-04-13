@@ -13,7 +13,7 @@ from fs_grl.modules.mlp import MLP
 
 class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
     def __init__(
-        self, cfg, feature_dim, num_classes, supports_aggregation="deepsets", prototypes_from_nodes=False, **kwargs
+        self, cfg, feature_dim, num_classes, supports_aggregation="mean", prototypes_from_nodes=False, **kwargs
     ):
         super().__init__()
         self.cfg = cfg
