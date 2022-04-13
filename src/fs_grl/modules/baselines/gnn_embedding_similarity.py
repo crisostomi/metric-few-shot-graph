@@ -12,7 +12,9 @@ from fs_grl.modules.mlp import MLP
 
 
 class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
-    def __init__(self, cfg, feature_dim, num_classes, supports_aggregation="deepsets", **kwargs):
+    def __init__(
+        self, cfg, feature_dim, num_classes, supports_aggregation="deepsets", prototypes_from_nodes=False, **kwargs
+    ):
         super().__init__()
         self.cfg = cfg
 
@@ -24,6 +26,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         )
 
         self.supports_aggregation = supports_aggregation
+        self.prototypes_from_nodes = prototypes_from_nodes
 
         if self.supports_aggregation == "deepsets":
 
@@ -56,15 +59,14 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         :return:
         """
 
-        # shape (num_supports_batch, hidden_dim)
-        embedded_supports = self.embed_supports(batch, graph_level=False)
+        graph_level = not self.prototypes_from_nodes
+        embedded_supports = self.embed_supports(batch, graph_level=graph_level)
 
         # shape (num_queries_batch, hidden_dim)
         embedded_queries = self.embed_queries(batch)
 
         # shape (num_classes_per_episode, hidden_dim)
-        # class_prototypes = self.get_prototypes(embedded_supports, batch)
-        class_prototypes = self.get_prototypes_from_nodes(embedded_supports, batch)
+        class_prototypes = self.get_prototypes(embedded_supports, batch)
 
         similarities = self.get_queries_prototypes_similarities_batch(embedded_queries, class_prototypes, batch)
 
@@ -73,6 +75,49 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
             "class_prototypes": class_prototypes,
             "similarities": similarities,
         }
+
+    def get_prototypes(self, episode_embedded_supports: torch.Tensor, batch: EpisodeBatch):
+        if self.prototypes_from_nodes:
+            return self.get_prototypes_from_nodes(episode_embedded_supports, batch)
+        else:
+            return self.get_prototypes_from_graphs(episode_embedded_supports, batch)
+
+    def get_prototypes_from_graphs(
+        self, episode_embedded_supports: torch.Tensor, batch: EpisodeBatch
+    ) -> List[Dict[int, torch.Tensor]]:
+        """
+        Computes the prototype of each class as the mean of the embedded supports for that class
+
+        :param episode_embedded_supports: tensor ~ (num_supports_batch, embedding_dim)
+        :param batch:
+        :return: a list where each entry corresponds to the class prototypes of an episode as a dict (Ex. all_class_prototypes[0]
+                 contains the dict of the class prototypes of the first episode, and so on)
+        """
+        num_episodes = batch.num_episodes
+
+        # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
+        embedded_supports_per_episode = episode_embedded_supports.split(
+            tuple([batch.num_supports_per_episode] * num_episodes)
+        )
+
+        # sequence of labels for each episode, each has shape (num_supports_per_episode)
+        support_labels_by_episode = batch.supports.y.split(tuple([batch.num_supports_per_episode] * num_episodes))
+        labels_per_episode = batch.global_labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
+
+        all_prototypes = []
+        for episode in range(num_episodes):
+
+            episode_embedded_supports = embedded_supports_per_episode[episode]
+            episode_support_labels = support_labels_by_episode[episode]
+            episode_labels = labels_per_episode[episode]
+
+            prototypes_episode = self.compute_episode_prototypes(
+                episode_support_labels, episode_embedded_supports, episode_labels
+            )
+
+            all_prototypes.append(prototypes_episode)
+
+        return all_prototypes
 
     def get_prototypes_from_nodes(
         self, episode_embedded_support_nodes: torch.Tensor, batch: EpisodeBatch
@@ -124,43 +169,6 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
 
         return all_prototypes
 
-    def get_prototypes(
-        self, episode_embedded_supports: torch.Tensor, batch: EpisodeBatch
-    ) -> List[Dict[int, torch.Tensor]]:
-        """
-        Computes the prototype of each class as the mean of the embedded supports for that class
-
-        :param episode_embedded_supports: tensor ~ (num_supports_batch, embedding_dim)
-        :param batch:
-        :return: a list where each entry corresponds to the class prototypes of an episode as a dict (Ex. all_class_prototypes[0]
-                 contains the dict of the class prototypes of the first episode, and so on)
-        """
-        num_episodes = batch.num_episodes
-
-        # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
-        embedded_supports_per_episode = episode_embedded_supports.split(
-            tuple([batch.num_supports_per_episode] * num_episodes)
-        )
-
-        # sequence of labels for each episode, each has shape (num_supports_per_episode)
-        support_labels_by_episode = batch.supports.y.split(tuple([batch.num_supports_per_episode] * num_episodes))
-        labels_per_episode = batch.global_labels.split([batch.episode_hparams.num_classes_per_episode] * num_episodes)
-
-        all_prototypes = []
-        for episode in range(num_episodes):
-
-            episode_embedded_supports = embedded_supports_per_episode[episode]
-            episode_support_labels = support_labels_by_episode[episode]
-            episode_labels = labels_per_episode[episode]
-
-            prototypes_episode = self.compute_episode_prototypes(
-                episode_support_labels, episode_embedded_supports, episode_labels
-            )
-
-            all_prototypes.append(prototypes_episode)
-
-        return all_prototypes
-
     def compute_episode_prototypes(
         self,
         episode_support_labels,
@@ -187,41 +195,14 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
                     label, episode_embedded_supports, episode_support_labels, episode_graph_sizes
                 )
             else:
-                label_prototype = self.compute_label_prototype(label, episode_embedded_supports, episode_support_labels)
+                label_prototype = self.compute_label_prototype_from_graphs(
+                    label, episode_embedded_supports, episode_support_labels
+                )
             prototypes_episode[label.item()] = label_prototype
 
         return prototypes_episode
 
-    def compute_label_prototype_from_nodes(
-        self,
-        label: torch.Tensor,
-        embedded_supports: torch.Tensor,
-        support_labels: torch.Tensor,
-        episode_graph_sizes: torch.Tensor,
-    ) -> torch.Tensor:
-        """
-
-        :param label: label for which we compute the prototype
-        :param embedded_supports: tensor (num_support_nodes_episode, embedding_dim) containing the
-                                    embedded support nodes in the episode
-        :param support_labels: labels for the supports in the episode
-        :return:
-        """
-        device = embedded_supports.device
-
-        num_support_nodes = embedded_supports.shape[0]
-
-        # pick support nodes having label "label"
-        node_level_labels = support_labels.repeat_interleave(episode_graph_sizes)
-        label_support_nodes_indices = torch.arange(num_support_nodes, device=device)[node_level_labels == label]
-
-        # obtain the label prototype as the mean of those supports
-        label_support_nodes = embedded_supports[label_support_nodes_indices]
-        label_prototype = self.aggregate_supports(label_support_nodes)
-
-        return label_prototype
-
-    def compute_label_prototype(
+    def compute_label_prototype_from_graphs(
         self, label: torch.Tensor, embedded_supports: torch.Tensor, support_labels: torch.Tensor
     ) -> torch.Tensor:
         """
@@ -240,6 +221,36 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         # obtain the label prototype as the mean of those supports
         label_supports = embedded_supports[label_supports_indices]
         label_prototype = self.aggregate_supports(label_supports)
+
+        return label_prototype
+
+    def compute_label_prototype_from_nodes(
+        self,
+        label: torch.Tensor,
+        embedded_supports: torch.Tensor,
+        support_labels: torch.Tensor,
+        episode_graph_sizes: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+
+        :param episode_graph_sizes:
+        :param label: label for which we compute the prototype
+        :param embedded_supports: tensor (num_support_nodes_episode, embedding_dim) containing the
+                                    embedded support nodes in the episode
+        :param support_labels: labels for the supports in the episode
+        :return:
+        """
+        device = embedded_supports.device
+
+        num_support_nodes = embedded_supports.shape[0]
+
+        # pick support nodes having label "label"
+        node_level_labels = support_labels.repeat_interleave(episode_graph_sizes)
+        label_support_nodes_indices = torch.arange(num_support_nodes, device=device)[node_level_labels == label]
+
+        # obtain the label prototype as the mean of those supports
+        label_support_nodes = embedded_supports[label_support_nodes_indices]
+        label_prototype = self.aggregate_supports(label_support_nodes)
 
         return label_prototype
 
