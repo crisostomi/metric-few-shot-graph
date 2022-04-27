@@ -39,7 +39,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
         embedded_batch = self.embedder(batch)
         return embedded_batch
 
-    def get_sample_prototypes_similarities(
+    def get_sample_prototypes_correlations(
         self, sample: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
     ) -> torch.Tensor:
         pass
@@ -130,7 +130,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
 
         return class_prototype_matrix
 
-    def compute_sample_prototypes_similarities(
+    def compute_sample_prototypes_correlations(
         self, sample: torch.Tensor, label_to_prototype_embeddings: Dict, batch: EpisodeBatch
     ) -> torch.Tensor:
         """
@@ -145,7 +145,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
         class_prototype_matrix = self.get_prototype_matrix_from_dict(label_to_prototype_embeddings)
 
         # shape (num_classes_per_episode)
-        similarities = self.get_sample_prototypes_similarities(sample, class_prototype_matrix, batch)
+        similarities = self.get_sample_prototypes_correlations(sample, class_prototype_matrix, batch)
 
         return similarities
 
@@ -291,7 +291,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
         :param batch:
         :return:
         """
-        sampler_to_prototypes_similarities = self.compute_sample_prototypes_similarities(
+        sampler_to_prototypes_similarities = self.compute_sample_prototypes_correlations(
             sample, label_to_prototype_embeddings, batch
         )
         sample_class_distr = torch.softmax(sampler_to_prototypes_similarities, dim=-1)

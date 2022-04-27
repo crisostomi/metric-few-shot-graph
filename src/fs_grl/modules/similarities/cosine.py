@@ -3,7 +3,7 @@ from torch.nn import functional as F
 
 
 def cosine(x, y):
-    similarities = torch.einsum("qh,qh->q", (F.normalize(x), F.normalize(y)))
+    similarities = torch.einsum("qh,qh->q", (F.normalize(x, dim=-1), F.normalize(y, dim=-1)))
     return similarities
 
 

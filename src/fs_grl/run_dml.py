@@ -4,6 +4,7 @@ from typing import Dict, List
 
 import hydra
 import omegaconf
+import pytorch_lightning
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Callback
@@ -114,6 +115,9 @@ def run(cfg: DictConfig) -> str:
     else:
         if trainer.checkpoint_callback.best_model_path is not None:
             pylogger.info("Starting testing!")
+            pytorch_lightning.seed_everything(seed=0)
+            datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+            datamodule.setup()
             trainer.test(datamodule=datamodule)
 
     if logger is not None:

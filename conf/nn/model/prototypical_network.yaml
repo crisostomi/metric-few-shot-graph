@@ -10,9 +10,8 @@ optimizer:
   _target_: torch.optim.Adam
   lr: 1e-4
 
-
 model:
-  _target_: fs_grl.modules.baselines.gnn_embedding_cosine_nll.GNNEmbeddingCosineNLL
+  _target_: fs_grl.modules.baselines.prototypical_network.PrototypicalNetwork
   feature_dim: ???
   num_classes: ???
   margin: 0.5
@@ -33,7 +32,7 @@ model:
       use_batch_norm: true
       num_preproc_mlp_layers: 1
       num_postproc_mlp_layers: 2
-      num_gin_mlp_layers: 1
+      num_gin_mlp_layers: 2
       jump_mode: cat
       non_linearity:
         _target_: torch.nn.ReLU

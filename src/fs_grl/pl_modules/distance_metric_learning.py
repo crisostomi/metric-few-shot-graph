@@ -12,7 +12,6 @@ from nn_core.model_logging import NNLogger
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.pl_modules.pl_module import MyLightningModule
-from fs_grl.utils import compute_global_prototypes
 
 pylogger = logging.getLogger(__name__)
 
@@ -22,9 +21,9 @@ class DistanceMetricLearning(MyLightningModule):
 
     def __init__(
         self,
-        train_data_list_by_label,
-        artificial_regularizer_weight,
-        intra_class_variance_weight,
+        # train_data_list_by_label,
+        artificial_regularizer_weight=0.5,
+        intra_class_variance_weight=0.0,
         metadata: Optional[MetaData] = None,
         *args,
         **kwargs,
@@ -67,7 +66,7 @@ class DistanceMetricLearning(MyLightningModule):
         self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
         self.base_prototypes = {}
-        self.train_data_list_by_label = train_data_list_by_label
+        # self.train_data_list_by_label = train_data_list_by_label
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """
@@ -107,14 +106,13 @@ class DistanceMetricLearning(MyLightningModule):
 
         self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
 
-        return {"similarities": model_out["similarities"], "loss": loss}
+        return {"model_out": model_out, "loss": loss}
 
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
         step_out = self.step(batch, "train")
-        similarities = step_out["similarities"]
 
-        predictions = self.get_predictions(similarities, batch)
+        predictions = self.model.get_predictions(step_out, batch)
 
         for metric_name, metric in self.train_metrics.items():
             metric_res = metric(preds=predictions, target=batch.queries.y)
@@ -122,17 +120,14 @@ class DistanceMetricLearning(MyLightningModule):
 
         return step_out
 
-    def on_train_end(self) -> None:
-        base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
-        self.base_prototypes = base_prototypes
+    # def on_train_end(self) -> None:
+    #     base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
+    #     self.base_prototypes = base_prototypes
 
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
 
-        # shape (B*(N*Q)*N)
-        similarities = step_out["similarities"]
-
-        predictions = self.get_predictions(similarities, batch)
+        predictions = self.model.get_predictions(step_out, batch)
 
         for metric_name, metric in self.val_metrics.items():
             metric(preds=predictions, target=batch.queries.y)
@@ -145,10 +140,7 @@ class DistanceMetricLearning(MyLightningModule):
 
         step_out = self.step(batch, "test")
 
-        # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
-        similarities = step_out["similarities"]
-
-        predictions = self.get_predictions(similarities, batch)
+        predictions = self.model.get_predictions(step_out, batch)
 
         for metric_name, metric in self.test_metrics.items():
             metric(preds=predictions, target=batch.queries.y)
@@ -156,55 +148,3 @@ class DistanceMetricLearning(MyLightningModule):
         self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 
         return step_out
-
-    def get_predictions(self, similarities: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
-        """
-
-        :param similarities: shape (B * N*Q * N)
-        :param batch:
-        :return:
-        """
-        num_classes_per_episode = batch.episode_hparams.num_classes_per_episode
-
-        # shape (B*(N*Q), N) contains the similarity between the query
-        # and the N label prototypes for each of the N*Q queries
-        similarities_per_label = similarities.reshape((-1, num_classes_per_episode))
-
-        # shape (B*(N*Q)) contains for each query the most similar label
-        pred_labels = torch.argmax(similarities_per_label, dim=-1)
-
-        pred_global_labels = self.map_pred_labels_to_global(
-            pred_labels=pred_labels, batch_global_labels=batch.global_labels, num_episodes=batch.num_episodes
-        )
-
-        return pred_global_labels
-
-    @staticmethod
-    def map_pred_labels_to_global(pred_labels, batch_global_labels, num_episodes):
-        """
-
-        :param pred_labels: (B*N*Q)
-        :param batch_global_labels: (B*N)
-        :param num_episodes: number of episodes in the batch
-
-        :return:
-        """
-        global_labels_per_episode = batch_global_labels.reshape(num_episodes, -1)
-        pred_labels = pred_labels.reshape(num_episodes, -1)
-
-        mapped_labels = []
-        for episode_num in range(num_episodes):
-
-            # shape (N)
-            episode_global_labels = global_labels_per_episode[episode_num]
-            # shape (N*Q)
-            episode_pred_labels = pred_labels[episode_num]
-            # shape (N*Q)
-            episode_mapped_labels = episode_global_labels[episode_pred_labels]
-
-            mapped_labels.append(episode_mapped_labels)
-
-        # shape (B*N*Q)
-        mapped_labels = torch.cat(mapped_labels, dim=0)
-
-        return mapped_labels

@@ -15,7 +15,7 @@ class GNNEmbeddingTriplet(GNNEmbeddingSimilarity):
             margin=margin, reduction="mean", distance_function=cosine_distance_1D
         )
 
-    def get_queries_prototypes_similarities_batch(self, embedded_queries, class_prototypes, batch):
+    def get_queries_prototypes_correlations_batch(self, embedded_queries, class_prototypes, batch):
         """
 
         :param embedded_queries ~

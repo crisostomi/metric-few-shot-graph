@@ -6,7 +6,7 @@
 
 defaults:
   - _self_
-  - model: gnn_embedding_cosine
+  - model: prototypical_network
   - data: r52
 
 data:
@@ -26,12 +26,13 @@ data:
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
-  curriculum_learning: false
-  max_difficult_step: 10000
+  curriculum_learning: true
+  max_difficult_step: 5000
   plot_graphs: false
 
   num_train_episodes: 2000
-  num_test_episodes: 500
+  num_val_episodes: 2000
+  num_test_episodes: 10000
   support_ratio: 0.8
 
   separated_query_support: false

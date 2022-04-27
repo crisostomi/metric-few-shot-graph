@@ -107,6 +107,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         train_ratio,
         test_episode_hparams: EpisodeHParams,
         num_train_episodes,
+        num_val_episodes,
         num_test_episodes,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -146,6 +147,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
 
         self.test_episode_hparams = instantiate(test_episode_hparams)
         self.num_train_episodes = num_train_episodes
+        self.num_val_episodes = num_val_episodes
         self.num_test_episodes = num_test_episodes
 
         self.support_ratio = support_ratio
@@ -321,6 +323,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         support_ratio,
         train_ratio,
         num_train_episodes,
+        num_val_episodes,
         num_test_episodes,
         separated_query_support,
         curriculum_learning,
@@ -342,6 +345,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             query_support_split_path=query_support_split_path,
             test_episode_hparams=test_episode_hparams,
             num_train_episodes=num_train_episodes,
+            num_val_episodes=num_val_episodes,
             num_test_episodes=num_test_episodes,
             separated_query_support=separated_query_support,
             support_ratio=support_ratio,
@@ -391,7 +395,7 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             self.val_datasets = [
                 MapEpisodicDataset(
                     samples=val_samples,
-                    num_episodes=self.num_test_episodes,
+                    num_episodes=self.num_val_episodes,
                     stage_labels=self.val_labels,
                     class_to_label_dict=self.class_to_label_dict,
                     episode_hparams=self.val_episode_hparams,

@@ -18,7 +18,7 @@ class GNNEmbeddingMLP(GNNEmbeddingPairwise):
 
         self.loss_func = MarginLoss(margin=margin, reduction="mean")
 
-    def get_queries_prototypes_similarities_batch(self, embedded_queries, class_prototypes, batch):
+    def get_queries_prototypes_correlations_batch(self, embedded_queries, class_prototypes, batch):
 
         batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
         batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]

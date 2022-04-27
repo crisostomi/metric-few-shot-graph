@@ -5,7 +5,7 @@ trainer:
   fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 1000
+  max_epochs: 200
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
