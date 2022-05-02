@@ -21,9 +21,6 @@ class DistanceMetricLearning(MyLightningModule):
 
     def __init__(
         self,
-        # train_data_list_by_label,
-        artificial_regularizer_weight=0.5,
-        intra_class_variance_weight=0.0,
         metadata: Optional[MetaData] = None,
         *args,
         **kwargs,
@@ -46,8 +43,6 @@ class DistanceMetricLearning(MyLightningModule):
             num_classes_per_episode=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
-        self.artificial_regularizer_weight = artificial_regularizer_weight
-        self.intra_class_variance_weight = intra_class_variance_weight
 
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))
@@ -65,9 +60,6 @@ class DistanceMetricLearning(MyLightningModule):
         )
         self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
-        self.base_prototypes = {}
-        # self.train_data_list_by_label = train_data_list_by_label
-
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """
         :return similarities, tensor ~ (B*(N*Q)*N) containing for each episode the similarity
@@ -82,31 +74,11 @@ class DistanceMetricLearning(MyLightningModule):
 
         model_out = self(batch)
 
-        regularizer_term = 0
-        if self.artificial_regularizer_weight > 0:
-            regularizer_term = self.model.compute_crossover_regularizer(model_out, batch)
-            self.log_dict({f"loss/{split}/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
+        losses = self.model.compute_losses(model_out, batch)
 
-        intra_class_variance_term = 0
-        if self.intra_class_variance_weight > 0:
-            intra_class_variance_term = self.model.get_intra_class_variance(
-                model_out["embedded_supports"], model_out["class_prototypes"], batch
-            )
-            self.log_dict(
-                {f"loss/{split}/intra_class_variance": intra_class_variance_term}, on_epoch=True, on_step=True
-            )
+        self.log_losses(losses, split)
 
-        margin_loss = self.model.compute_loss(model_out, batch)
-
-        loss = (
-            margin_loss
-            + self.artificial_regularizer_weight * regularizer_term
-            + self.intra_class_variance_weight * intra_class_variance_term
-        )
-
-        self.log_dict({f"loss/{split}": loss}, on_epoch=True, on_step=True)
-
-        return {"model_out": model_out, "loss": loss}
+        return {"model_out": model_out, "losses": losses, "loss": losses["total"]}
 
     def training_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
@@ -119,10 +91,6 @@ class DistanceMetricLearning(MyLightningModule):
             self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
 
         return step_out
-
-    # def on_train_end(self) -> None:
-    #     base_prototypes = compute_global_prototypes(self, self.train_data_list_by_label, self.label_to_class_dict)
-    #     self.base_prototypes = base_prototypes
 
     def validation_step(self, batch: EpisodeBatch, batch_idx: int):
         step_out = self.step(batch, "val")
@@ -148,3 +116,13 @@ class DistanceMetricLearning(MyLightningModule):
         self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 
         return step_out
+
+    def log_losses(self, losses, split):
+        """
+
+        :param losses:
+        :param split:
+        :return:
+        """
+        for loss_name, loss_value in losses.items():
+            self.log_dict({f"loss/{split}/{loss_name}": loss_value}, on_epoch=True, on_step=True)

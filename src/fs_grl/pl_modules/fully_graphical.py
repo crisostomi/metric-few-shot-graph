@@ -84,9 +84,9 @@ class FullyGraphical(MyLightningModule):
             regularizer_term = self.compute_crossover_regularizer(model_out, batch)
             self.log_dict({"loss/artificial_regularizer": regularizer_term}, on_epoch=True, on_step=True)
 
-        margin_loss = self.model.compute_loss(model_out, batch)
+        margin_loss = self.model.compute_classification_loss(model_out, batch)
         intra_class_variance = (
-            self.model.get_intra_class_variance(model_out["embedded_supports"], model_out["class_prototypes"], batch)
+            self.model.compute_intraclass_var_reg(model_out["embedded_supports"], model_out["class_prototypes"], batch)
             if self.variance_loss_weight > 0
             else 0
         )

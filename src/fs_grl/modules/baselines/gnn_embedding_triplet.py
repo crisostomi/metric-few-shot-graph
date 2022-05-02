@@ -29,7 +29,7 @@ class GNNEmbeddingTriplet(GNNEmbeddingSimilarity):
 
         return similarities
 
-    def compute_loss(self, model_out, batch: EpisodeBatch, **kwargs):
+    def compute_classification_loss(self, model_out, batch: EpisodeBatch, **kwargs):
 
         # ( B*(N*Q), D)
         embedded_queries = model_out["embedded_queries"]

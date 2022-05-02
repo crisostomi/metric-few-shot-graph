@@ -81,8 +81,8 @@ class EpisodicDataset(ABC):
 
         labels = self.sample_labels()
 
-        supports = []
-        queries = []
+        supports: List[Data] = []
+        queries: List[Data] = []
 
         for label in labels:
             label_supports_queries = self.sample_label_queries_supports(label)
@@ -151,7 +151,6 @@ class IterableEpisodicDataset(torch.utils.data.IterableDataset, EpisodicDataset)
             worker_id = 0
         else:  # in a worker process
             worker_id = worker_info.id
-            # split workload
             per_worker = math.ceil(int(self.num_episodes / float(worker_info.num_workers)))
 
         random.seed(worker_id)
@@ -227,9 +226,6 @@ class CurriculumIterableEpisodicDataset(IterableEpisodicDataset):
         similarities = torch.einsum(
             "qh,qh->q", (F.normalize(interleaved_repeated_prototypes), F.normalize(repeated_prototypes))
         ).reshape((len(self.stage_labels), len(self.stage_labels)))
-
-        # similarities = similarities - torch.min(similarities, dim=-1)[0]
-        # similarities = similarities / torch.max(similarities, dim=-1)[0]
 
         max_val = similarities.max(-1)[0].unsqueeze(dim=0).transpose(1, 0)
         min_val = -1 * torch.ones((len(self.stage_labels), 1))

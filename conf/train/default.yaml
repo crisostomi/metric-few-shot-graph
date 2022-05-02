@@ -26,7 +26,7 @@ restore:
   mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'loss/val'
+  metric: 'loss/val/total'
   mode: 'min'
 
 callbacks:

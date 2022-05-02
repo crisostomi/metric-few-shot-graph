@@ -10,8 +10,9 @@ from fs_grl.data.episode import EpisodeBatch
 
 
 class PrototypicalDML(abc.ABC, nn.Module):
-    def __init__(self):
+    def __init__(self, loss_weights):
         super().__init__()
+        self.loss_weights = loss_weights
 
     def embed_supports(self, batch: EpisodeBatch, graph_level=True) -> torch.Tensor:
         """
@@ -149,7 +150,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
 
         return similarities
 
-    def compute_crossover_regularizer(self, model_out: Dict, batch: EpisodeBatch):
+    def compute_latent_mixup_reg(self, model_out: Dict, batch: EpisodeBatch):
         """
         Computes the regularizer term for the artificial samples created as cross-over of samples
         from different classes
@@ -170,7 +171,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
 
         regularizer_term = 0
         for episode in range(batch.num_episodes):
-            episode_prototypes = model_out["class_prototypes"][episode]
+            episode_prototypes = model_out["prototypes_dicts"][episode]
             episode_global_label_pairs = self.get_global_label_pairs(global_labels_by_episode[episode])
             episode_query_embeddings = query_embeddings_by_episode[episode]
             episode_query_labels = query_labels_by_episode[episode]
@@ -315,7 +316,7 @@ class PrototypicalDML(abc.ABC, nn.Module):
 
         return query_embedding
 
-    def get_intra_class_variance(
+    def compute_intraclass_var_reg(
         self, embedded_supports: torch.Tensor, label_to_prototype_embed_map: Dict, batch: EpisodeBatch
     ):
         """

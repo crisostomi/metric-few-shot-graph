@@ -8,7 +8,7 @@ class GNNEmbeddingPairwise(GNNEmbeddingSimilarity, abc.ABC):
     def __init__(self, cfg, feature_dim, num_classes, **kwargs):
         super().__init__(cfg, feature_dim=feature_dim, num_classes=num_classes, **kwargs)
 
-    def compute_loss(self, model_out, batch: EpisodeBatch, **kwargs):
+    def compute_classification_loss(self, model_out, batch: EpisodeBatch, **kwargs):
         similarities = model_out["similarities"]
 
         return self.loss_func(similarities, batch.cosine_targets)

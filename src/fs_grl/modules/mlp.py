@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
+from torch.nn import LayerNorm
 from torch_geometric.nn import GraphNorm
 
 
 class MLP(nn.Module):
-    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim, non_linearity, use_batch_norm=True):
+    def __init__(self, num_layers: int, input_dim, output_dim, hidden_dim, non_linearity, batch_norm="graph"):
         """
         num_layers: number of layers in the neural networks
                     If num_layers=1, this reduces to linear model.
@@ -23,15 +24,17 @@ class MLP(nn.Module):
 
         self.linears.append(nn.Linear(input_dim, hidden_sizes[0]))
 
-        self.use_batch_norm = use_batch_norm
+        self.use_batch_norm = batch_norm != "none"
+
         if self.use_batch_norm:
+            self.batch_norm_class = GraphNorm if batch_norm == "graph" else LayerNorm
             self.batch_norms = torch.nn.ModuleList()
-            self.batch_norms.append(GraphNorm((hidden_sizes[0])))
+            self.batch_norms.append(self.batch_norm_class((hidden_sizes[0])))
 
         for layer in range(1, num_layers):
             self.linears.append(nn.Linear(hidden_sizes[layer - 1], hidden_sizes[layer]))
             if self.use_batch_norm:
-                self.batch_norms.append(GraphNorm((hidden_sizes[layer])))
+                self.batch_norms.append(self.batch_norm_class((hidden_sizes[layer])))
 
         self.non_linearity = non_linearity
 

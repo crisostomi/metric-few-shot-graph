@@ -6,8 +6,8 @@
 
 defaults:
   - _self_
-  - model: prototypical_network
-  - data: r52
+  - model: adaptive_protonet
+  - data: coildel
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -26,7 +26,7 @@ data:
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
-  curriculum_learning: true
+  curriculum_learning: false
   max_difficult_step: 5000
   plot_graphs: false
 

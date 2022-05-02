@@ -13,9 +13,17 @@ from fs_grl.modules.mlp import MLP
 
 class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
     def __init__(
-        self, cfg, feature_dim, num_classes, supports_aggregation="mean", prototypes_from_nodes=False, **kwargs
+        self,
+        cfg,
+        feature_dim,
+        num_classes,
+        metric_scaling_factor,
+        loss_weights,
+        supports_aggregation="mean",
+        prototypes_from_nodes=False,
+        **kwargs,
     ):
-        super().__init__()
+        super().__init__(loss_weights)
         self.cfg = cfg
 
         self.feature_dim = feature_dim
@@ -27,6 +35,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
 
         self.supports_aggregation = supports_aggregation
         self.prototypes_from_nodes = prototypes_from_nodes
+        self.register_buffer("metric_scaling_factor", torch.tensor(metric_scaling_factor))
 
         if self.supports_aggregation == "deepsets":
 
@@ -37,7 +46,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
                     output_dim=self.embedder.embedding_dim,
                     hidden_dim=self.embedder.embedding_dim,
                     non_linearity=torch.nn.ReLU(),
-                    use_batch_norm=True,
+                    batch_norm=True,
                 ),
             )
 
@@ -48,7 +57,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
                     output_dim=self.embedder.embedding_dim,
                     hidden_dim=self.embedder.embedding_dim,
                     non_linearity=torch.nn.ReLU(),
-                    use_batch_norm=True,
+                    batch_norm=True,
                 ),
             )
             self.deep_sets_embedder = DeepSetsEmbedder(phi=phi, rho=rho)
@@ -66,13 +75,13 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         embedded_queries = self.embed_queries(batch)
 
         # shape (num_classes_per_episode, hidden_dim)
-        class_prototypes = self.get_prototypes(embedded_supports, batch)
+        prototypes_dict = self.get_prototypes(embedded_supports, batch)
 
-        similarities = self.get_queries_prototypes_correlations_batch(embedded_queries, class_prototypes, batch)
+        similarities = self.get_queries_prototypes_correlations_batch(embedded_queries, prototypes_dict, batch)
 
         return {
             "embedded_queries": embedded_queries,
-            "class_prototypes": class_prototypes,
+            "prototypes_dicts": prototypes_dict,
             "similarities": similarities,
         }
 
@@ -267,10 +276,6 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
     def get_queries_prototypes_correlations_batch(self, embedded_queries, class_prototypes, batch):
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def compute_loss(self, embedded_queries, class_prototypes, batch: EpisodeBatch, **kwargs):
-        pass
-
     def get_predictions(self, step_out: Dict, batch: EpisodeBatch) -> torch.Tensor:
         """
 
@@ -326,3 +331,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         mapped_labels = torch.cat(mapped_labels, dim=0)
 
         return mapped_labels
+
+    @abc.abstractmethod
+    def compute_classification_loss(self, embedded_queries, class_prototypes, batch: EpisodeBatch, **kwargs):
+        pass

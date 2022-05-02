@@ -16,7 +16,7 @@ class NodeEmbedder(nn.Module):
         num_convs,
         dropout_rate,
         do_preprocess,
-        use_batch_norm=True,
+        batch_norm="none",
         jump_mode="cat",
         non_linearity=nn.ReLU,
     ):
@@ -29,7 +29,7 @@ class NodeEmbedder(nn.Module):
         self.num_gin_mlp_layers = num_gin_mlp_layers
         self.jump_mode = jump_mode
         self.do_preprocess = do_preprocess
-        self.use_batch_norm = use_batch_norm
+        self.batch_norm = batch_norm
         self.non_linearity = non_linearity
 
         self.preprocess_mlp = (
@@ -38,7 +38,7 @@ class NodeEmbedder(nn.Module):
                 input_dim=self.feature_dim,
                 output_dim=self.hidden_dim,
                 hidden_dim=self.hidden_dim,
-                use_batch_norm=self.use_batch_norm,
+                batch_norm=self.batch_norm,
                 non_linearity=self.non_linearity,
             )
             if do_preprocess
@@ -54,7 +54,7 @@ class NodeEmbedder(nn.Module):
                     input_dim=input_dim,
                     output_dim=self.hidden_dim,
                     hidden_dim=self.hidden_dim,
-                    use_batch_norm=self.use_batch_norm,
+                    batch_norm=self.batch_norm,
                     non_linearity=self.non_linearity,
                 )
             )
@@ -72,7 +72,7 @@ class NodeEmbedder(nn.Module):
             input_dim=after_conv_dim,
             output_dim=self.embedding_dim,
             hidden_dim=self.hidden_dim,
-            use_batch_norm=self.use_batch_norm,
+            batch_norm="layer",
             non_linearity=self.non_linearity,
         )
 

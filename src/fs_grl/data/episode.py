@@ -48,8 +48,16 @@ class Episode:
         :param global_labels: subset of the stage labels sampled for the episode
         :param episode_hparams: N, K and Q
         """
+
+        support_global_labels = torch.stack([support.y for support in supports])
+        query_global_labels = torch.stack([query.y for query in queries])
+
+        self.support_local_labels = torch.unique(support_global_labels, return_inverse=True)[1]
+        self.query_local_labels = torch.unique(query_global_labels, return_inverse=True)[1]
+
         self.supports = supports
         self.queries = queries
+
         self.global_labels = global_labels
 
         self.episode_hparams = episode_hparams
@@ -61,7 +69,7 @@ class Episode:
         )
 
 
-class EpisodeBatch(Episode):
+class EpisodeBatch:
     def __init__(
         self,
         supports: Batch,
@@ -70,7 +78,6 @@ class EpisodeBatch(Episode):
         episode_hparams: EpisodeHParams,
         num_episodes: int,
         cosine_targets: torch.Tensor,
-        local_labels: torch.Tensor,
         label_to_prototype_mapping: List[Dict] = None,
     ):
         """
@@ -81,16 +88,24 @@ class EpisodeBatch(Episode):
         :param episode_hparams: N, K, Q
         :param num_episodes: how many episodes per batch
         :param cosine_targets:
-        :param local_labels: labels remapped to 0,..,N-1 which are local to the single episodes
+        :param query_local_labels: labels remapped to 0,..,N-1 which are local to the single episodes
                              i.e. they are not consistent through the batch
         """
-        super().__init__(
-            supports=supports, queries=queries, global_labels=global_labels, episode_hparams=episode_hparams
+        self.supports = supports
+        self.queries = queries
+
+        self.global_labels = global_labels
+
+        self.episode_hparams = episode_hparams
+        self.num_queries_per_episode = (
+            self.episode_hparams.num_queries_per_class * self.episode_hparams.num_classes_per_episode
+        )
+        self.num_supports_per_episode = (
+            self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
         )
 
         self.num_episodes = num_episodes
         self.cosine_targets = cosine_targets
-        self.local_labels = local_labels
         self.label_to_prototype_mapping = label_to_prototype_mapping
 
     @classmethod
@@ -123,6 +138,12 @@ class EpisodeBatch(Episode):
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
 
+        support_local_labels = torch.cat([episode.support_local_labels for episode in episode_list], dim=0)
+        query_local_labels = torch.cat([episode.query_local_labels for episode in episode_list], dim=0)
+
+        supports_batch.support_local_labels = support_local_labels
+        queries_batch.query_local_labels = query_local_labels
+
         if add_prototype_nodes:
             cls.update_supports_batch_with_prototype_edges(
                 supports_batch, episode_list, all_prototype_edges, episode_hparams
@@ -130,8 +151,6 @@ class EpisodeBatch(Episode):
 
         # shape (B*(N*Q)*N)
         cosine_targets = cls.get_cosine_targets(episode_list)
-        # shape (N*(Q*B))
-        local_labels = cls.get_local_labels_from_cosine_targets(cosine_targets, episode_hparams)
 
         episode_batch = cls(
             supports=supports_batch,
@@ -140,7 +159,6 @@ class EpisodeBatch(Episode):
             episode_hparams=episode_hparams,
             num_episodes=len(episode_list),
             cosine_targets=cosine_targets,
-            local_labels=local_labels,
             label_to_prototype_mapping=label_to_prototype_mappings,
         )
 
@@ -471,7 +489,6 @@ class EpisodeBatch(Episode):
         self.supports = self.supports.to(device)
         self.queries = self.queries.to(device)
         self.cosine_targets = self.cosine_targets.to(device)
-        self.local_labels = self.local_labels.to(device)
         self.global_labels = self.global_labels.to(device)
 
     def pin_memory(self):

@@ -3,18 +3,26 @@ defaults:
   - _self_
 
 _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
-artificial_regularizer_weight: 0.5
-intra_class_variance_weight: 0.0
+
 
 optimizer:
   _target_: torch.optim.Adam
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.baselines.prototypical_network.PrototypicalNetwork
+  _target_: fs_grl.modules.baselines.adaptive_protonet.AdaptivePrototypicalNetwork
   feature_dim: ???
   num_classes: ???
-  margin: 0.5
+  metric_scaling_factor: 7.5
+  num_attention_heads: 2
+  attention_dropout: 0.5
+
+  loss_weights:
+    classification_loss: 1
+    latent_mixup_reg: 0.5
+    intraclass_var_reg: 0.0
+    adaptive_reg: 0.1
+
   num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
 
   embedder:
