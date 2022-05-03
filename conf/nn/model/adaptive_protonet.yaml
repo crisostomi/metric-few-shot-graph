@@ -14,7 +14,7 @@ model:
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
-  num_attention_heads: 2
+  num_attention_heads: 1
   attention_dropout: 0.5
 
   loss_weights:
