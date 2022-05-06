@@ -29,19 +29,18 @@ class TADAM(PrototypicalNetwork):
         episode_embeddings = self.get_episode_embeddings(batch)
         gammas, betas = self.TEN(episode_embeddings)
 
-        support_gammas = torch.repeat_interleave(
-            gammas, torch.tensor([batch.num_supports_per_episode for _ in range(batch.num_episodes)]), dim=0
+        num_supports_repetitions = (
+            torch.tensor([batch.num_supports_per_episode for _ in range(batch.num_episodes)]).type_as(gammas).int()
         )
-        support_betas = torch.repeat_interleave(
-            betas, torch.tensor([batch.num_supports_per_episode for _ in range(batch.num_episodes)]), dim=0
+        num_queries_repetitions = (
+            torch.tensor([batch.num_queries_per_episode for _ in range(batch.num_episodes)]).type_as(gammas).int()
         )
 
-        query_gammas = torch.repeat_interleave(
-            gammas, torch.tensor([batch.num_queries_per_episode for _ in range(batch.num_episodes)]), dim=0
-        )
-        query_betas = torch.repeat_interleave(
-            betas, torch.tensor([batch.num_queries_per_episode for _ in range(batch.num_episodes)]), dim=0
-        )
+        support_gammas = torch.repeat_interleave(gammas, num_supports_repetitions, dim=0)
+        support_betas = torch.repeat_interleave(betas, num_supports_repetitions, dim=0)
+
+        query_gammas = torch.repeat_interleave(gammas, num_queries_repetitions, dim=0)
+        query_betas = torch.repeat_interleave(betas, num_queries_repetitions, dim=0)
 
         embedded_supports = self.task_conditioned_embed_supports(batch.supports, support_gammas, support_betas)
         embedded_queries = self.task_conditioned_embed_queries(batch.queries, query_gammas, query_betas)

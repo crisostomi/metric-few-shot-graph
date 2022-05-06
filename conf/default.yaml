@@ -4,7 +4,7 @@ core:
   storage_dir: ${oc.env:PROJECT_ROOT}/storage
   version: 0.0.1
   tags:
-    - prototypical_network
+    - TADAM
 
 defaults:
   - hydra: default

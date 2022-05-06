@@ -2,6 +2,7 @@ import abc
 from typing import Dict, List
 
 import torch
+import torch.nn as nn
 from hydra.utils import instantiate
 
 from fs_grl.data.episode import EpisodeBatch
@@ -35,7 +36,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
 
         self.supports_aggregation = supports_aggregation
         self.prototypes_from_nodes = prototypes_from_nodes
-        self.register_buffer("metric_scaling_factor", torch.tensor(metric_scaling_factor))
+        self.register_parameter("metric_scaling_factor", nn.Parameter(torch.tensor(metric_scaling_factor)))
 
         if self.supports_aggregation == "deepsets":
 

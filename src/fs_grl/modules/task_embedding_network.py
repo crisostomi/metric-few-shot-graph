@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -21,8 +22,10 @@ class ResBlock(nn.Module):
 class TaskEmbeddingNetwork(nn.Module):
     def __init__(self, in_size, hidden_size, out_size, beta_0, gamma_0):
         super().__init__()
-        self.beta_0 = beta_0
-        self.gamma_0 = gamma_0
+
+        self.register_parameter("beta_0", nn.Parameter(torch.tensor(beta_0)))
+        self.register_parameter("gamma_0", nn.Parameter(torch.tensor(gamma_0)))
+
         self.gamma_res_block = ResBlock(in_size=in_size, hidden_size=hidden_size, out_size=out_size)
         self.beta_res_block = ResBlock(in_size=in_size, hidden_size=hidden_size, out_size=out_size)
 

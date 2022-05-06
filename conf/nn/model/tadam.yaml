@@ -14,14 +14,13 @@ model:
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
-  gamma_0: 0.01
-  beta_0: 0.01
+  gamma_0: 0.1
+  beta_0: 0.1
 
   loss_weights:
     classification_loss: 1
     latent_mixup_reg: 0.5
     intraclass_var_reg: 0.0
-    adaptive_reg: 0.1
 
   num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
 
