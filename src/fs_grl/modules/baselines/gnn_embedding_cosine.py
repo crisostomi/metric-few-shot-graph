@@ -35,9 +35,11 @@ class GNNEmbeddingCosine(GNNEmbeddingPairwise):
         self, sample: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
     ) -> torch.Tensor:
         """
+
         :param sample:
         :param prototypes:
         :param batch:
+
         :return:
         """
         N = batch.episode_hparams.num_classes_per_episode

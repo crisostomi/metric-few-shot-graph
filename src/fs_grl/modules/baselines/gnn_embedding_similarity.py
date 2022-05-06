@@ -104,7 +104,7 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
         """
         num_episodes = batch.num_episodes
 
-        # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, hidden_dim)
+        # sequence of embedded supports for each episode, each has shape (num_supports_per_episode, embedding_dim)
         embedded_supports_per_episode = episode_embedded_supports.split(
             tuple([batch.num_supports_per_episode] * num_episodes)
         )
@@ -266,6 +266,8 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
     def aggregate_supports(self, supports):
         if self.supports_aggregation == "mean":
             prototype = supports.mean(dim=0)
+        elif self.supports_aggregation == "probabilistic":
+            prototype = self.probabilistic_embed(supports)
         elif self.supports_aggregation == "deepsets":
             prototype = self.deep_sets_embedder(supports)
         else:

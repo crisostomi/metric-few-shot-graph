@@ -6,7 +6,7 @@
 
 defaults:
   - _self_
-  - model: adaptive_protonet
+  - model: probabilistic_protonet
   - data: r52
 
 data:
