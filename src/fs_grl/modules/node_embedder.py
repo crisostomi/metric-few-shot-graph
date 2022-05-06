@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torch_geometric.nn import GINConv, JumpingKnowledge
 
@@ -78,7 +79,7 @@ class NodeEmbedder(nn.Module):
 
         self.jumping_knowledge = JumpingKnowledge(mode=self.jump_mode) if self.jump_mode != "none" else None
 
-    def forward(self, batch):
+    def forward(self, batch, gammas=None, betas=None):
         """
         Embeds a batch of graphs given as a single large graph
 
@@ -93,8 +94,15 @@ class NodeEmbedder(nn.Module):
         h = self.preprocess_mlp(X) if self.do_preprocess else X
         jump_xs = [X, h] if self.do_preprocess else [X]
 
-        for conv in self.convs:
+        if gammas is not None and betas is not None:
+            _, num_repetitions = torch.unique(batch.batch, return_counts=True)
+            gammas = torch.repeat_interleave(gammas, num_repetitions, dim=0)
+            betas = torch.repeat_interleave(betas, num_repetitions, dim=0)
+
+        for ind, conv in enumerate(self.convs):
             h = conv(h, edge_index)
+            if gammas is not None and betas is not None:
+                h = h * gammas[:, ind].unsqueeze(1) + betas[:, ind].unsqueeze(1)
             jump_xs.append(h)
 
         if self.jump_mode != "none":

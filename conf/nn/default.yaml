@@ -6,8 +6,8 @@
 
 defaults:
   - _self_
-  - model: adaptive_protonet
-  - data: coildel
+  - model: tadam
+  - data: r52
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
