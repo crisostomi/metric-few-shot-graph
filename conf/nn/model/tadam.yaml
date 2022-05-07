@@ -14,8 +14,10 @@ model:
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
-  gamma_0: 0.1
-  beta_0: 0.1
+  gamma_0: 0.0
+  beta_0: 0.0
+  gamma_0_weight: 0.01
+  beta_0_weight: 0.01
 
   loss_weights:
     classification_loss: 1

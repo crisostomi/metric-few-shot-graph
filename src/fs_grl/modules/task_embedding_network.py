@@ -30,7 +30,6 @@ class TaskEmbeddingNetwork(nn.Module):
         self.beta_res_block = ResBlock(in_size=in_size, hidden_size=hidden_size, out_size=out_size)
 
     def forward(self, task_embedding):
-        # TODO: L2 penalty for gamma0 and beta0
         gammas = self.gamma_res_block(task_embedding) * self.gamma_0 + 1
         betas = self.beta_res_block(task_embedding) * self.beta_0
 

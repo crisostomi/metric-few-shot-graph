@@ -6,7 +6,19 @@ from fs_grl.modules.task_embedding_network import TaskEmbeddingNetwork
 
 
 class TADAM(PrototypicalNetwork):
-    def __init__(self, cfg, feature_dim, num_classes, loss_weights, metric_scaling_factor, gamma_0, beta_0, **kwargs):
+    def __init__(
+        self,
+        cfg,
+        feature_dim,
+        num_classes,
+        loss_weights,
+        metric_scaling_factor,
+        gamma_0,
+        beta_0,
+        gamma_0_weight,
+        beta_0_weight,
+        **kwargs
+    ):
         super().__init__(
             cfg,
             feature_dim=feature_dim,
@@ -23,6 +35,9 @@ class TADAM(PrototypicalNetwork):
             beta_0=beta_0,
             gamma_0=gamma_0,
         )
+
+        self.gamma_0_weight = gamma_0_weight
+        self.beta_0_weight = beta_0_weight
 
     def forward(self, batch: EpisodeBatch):
 
@@ -78,3 +93,10 @@ class TADAM(PrototypicalNetwork):
 
     def task_conditioned_embed_queries(self, queries, gammas, betas):
         return self.embedder(queries, gammas, betas)
+
+    def compute_losses(self, model_out, batch):
+        losses = super().compute_losses(model_out, batch)
+        losses["total"] += self.gamma_0_weight * torch.pow(self.TEN.gamma_0, 2) + self.beta_0_weight * torch.pow(
+            self.TEN.beta_0, 2
+        )
+        return losses
