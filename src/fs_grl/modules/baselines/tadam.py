@@ -1,4 +1,5 @@
 import torch
+from torch_geometric.data import Batch
 
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.modules.baselines.prototypical_network import PrototypicalNetwork
@@ -6,18 +7,12 @@ from fs_grl.modules.task_embedding_network import TaskEmbeddingNetwork
 
 
 class TADAM(PrototypicalNetwork):
+    """
+    Extension of the standard Prototypical Network architecture inspired by https://arxiv.org/abs/1805.10123
+    """
+
     def __init__(
-        self,
-        cfg,
-        feature_dim,
-        num_classes,
-        loss_weights,
-        metric_scaling_factor,
-        gamma_0,
-        beta_0,
-        gamma_0_weight,
-        beta_0_weight,
-        **kwargs
+        self, cfg, feature_dim, num_classes, loss_weights, metric_scaling_factor, gamma_0_init, beta_0_init, **kwargs
     ):
         super().__init__(
             cfg,
@@ -25,24 +20,21 @@ class TADAM(PrototypicalNetwork):
             num_classes=num_classes,
             metric_scaling_factor=metric_scaling_factor,
             loss_weights=loss_weights,
-            **kwargs,
+            **kwargs
         )
 
-        self.TEN = TaskEmbeddingNetwork(
-            in_size=self.embedder.embedding_dim,
+        self.task_embedding_network = TaskEmbeddingNetwork(
             hidden_size=self.embedder.embedding_dim // 2,
-            out_size=self.embedder.node_embedder.num_convs,
-            beta_0=beta_0,
-            gamma_0=gamma_0,
+            embedding_dim=self.embedder.embedding_dim,
+            num_convs=self.embedder.node_embedder.num_convs + 1,
+            beta_0_init=beta_0_init,
+            gamma_0_init=gamma_0_init,
         )
-
-        self.gamma_0_weight = gamma_0_weight
-        self.beta_0_weight = beta_0_weight
 
     def forward(self, batch: EpisodeBatch):
 
         episode_embeddings = self.get_episode_embeddings(batch)
-        gammas, betas = self.TEN(episode_embeddings)
+        gammas, betas = self.task_embedding_network(episode_embeddings)
 
         num_supports_repetitions = (
             torch.tensor([batch.num_supports_per_episode for _ in range(batch.num_episodes)]).type_as(gammas).int()
@@ -51,11 +43,8 @@ class TADAM(PrototypicalNetwork):
             torch.tensor([batch.num_queries_per_episode for _ in range(batch.num_episodes)]).type_as(gammas).int()
         )
 
-        support_gammas = torch.repeat_interleave(gammas, num_supports_repetitions, dim=0)
-        support_betas = torch.repeat_interleave(betas, num_supports_repetitions, dim=0)
-
-        query_gammas = torch.repeat_interleave(gammas, num_queries_repetitions, dim=0)
-        query_betas = torch.repeat_interleave(betas, num_queries_repetitions, dim=0)
+        query_gammas, query_betas = self.align_gammas_betas(gammas, betas, num_queries_repetitions, batch.queries)
+        support_gammas, support_betas = self.align_gammas_betas(gammas, betas, num_supports_repetitions, batch.supports)
 
         embedded_supports = self.task_conditioned_embed_supports(batch.supports, support_gammas, support_betas)
         embedded_queries = self.task_conditioned_embed_queries(batch.queries, query_gammas, query_betas)
@@ -71,7 +60,39 @@ class TADAM(PrototypicalNetwork):
             "distances": distances,
         }
 
-    def get_episode_embeddings(self, batch):
+    def align_gammas_betas(
+        self, gammas: torch.Tensor, betas: torch.Tensor, num_sample_repetitions: torch.Tensor, batch: Batch
+    ):
+        """
+
+        :param gammas:
+        :param betas:
+        :param num_sample_repetitions:
+        :param batch:
+        :return:
+        """
+
+        # (num_samples_in_batch, embedding_dim, num_convs)
+        gammas_repeated_by_graphs = torch.repeat_interleave(gammas, num_sample_repetitions, dim=0)
+        betas_repeated_by_graphs = torch.repeat_interleave(betas, num_sample_repetitions, dim=0)
+
+        _, num_repetitions_nodes = torch.unique(batch.batch, return_counts=True)
+
+        # (num_nodes_in_batch, embedding_dim, num_convs)
+        gammas_repeated_by_nodes = torch.repeat_interleave(gammas_repeated_by_graphs, num_repetitions_nodes, dim=0)
+        betas_repeated_by_nodes = torch.repeat_interleave(betas_repeated_by_graphs, num_repetitions_nodes, dim=0)
+
+        # (num_convs, num_nodes_in_batch, embedding_dim)
+        return gammas_repeated_by_nodes.permute(2, 0, 1), betas_repeated_by_nodes.permute(2, 0, 1)
+
+    def get_episode_embeddings(self, batch: EpisodeBatch) -> torch.Tensor:
+        """
+        Get the episode representation as the mean of the class prototypes of the episode
+
+        :param batch:
+
+        :return: tensor ~ (num_episodes, embedding_dim)
+        """
         graph_level = not self.prototypes_from_nodes
         embedded_supports = self.embed_supports(batch, graph_level=graph_level)
 
@@ -88,15 +109,34 @@ class TADAM(PrototypicalNetwork):
         episode_embeddings = torch.stack(episode_embeddings)
         return episode_embeddings
 
-    def task_conditioned_embed_supports(self, supports, gammas, betas):
+    def task_conditioned_embed_supports(self, supports: Batch, gammas: torch.Tensor, betas: torch.Tensor):
+        """
+        Embed the supports accounting for the task embedding
+
+        :param supports:
+        :param gammas:
+        :param betas:
+
+        :return:
+        """
         return self.embedder(supports, gammas, betas)
 
     def task_conditioned_embed_queries(self, queries, gammas, betas):
+        """
+        Embed the queries accounting for the task embedding
+
+        :param queries:
+        :param gammas:
+        :param betas:
+
+        :return:
+        """
         return self.embedder(queries, gammas, betas)
 
     def compute_losses(self, model_out, batch):
         losses = super().compute_losses(model_out, batch)
-        losses["total"] += self.gamma_0_weight * torch.pow(self.TEN.gamma_0, 2) + self.beta_0_weight * torch.pow(
-            self.TEN.beta_0, 2
+        losses["film_reg"] = self.loss_weights["film_reg"] * (
+            torch.norm(self.task_embedding_network.gamma_0, p=2) + torch.norm(self.task_embedding_network.beta_0, p=2)
         )
+        losses["total"] = self.compute_total_loss(losses)
         return losses

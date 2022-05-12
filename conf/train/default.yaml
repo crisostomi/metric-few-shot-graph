@@ -26,7 +26,7 @@ restore:
   mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'loss/val/total'
+  metric: 'loss/val/classification_loss_epoch'
   mode: 'min'
 
 callbacks:
@@ -51,7 +51,7 @@ callbacks:
 
 distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 30 # 50 for TL, 5 for DML
+    patience: 5 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}

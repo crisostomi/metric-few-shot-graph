@@ -4,6 +4,7 @@ from typing import Dict, List
 
 import networkx as nx
 import numpy as np
+import scipy
 import torch
 from torch import Tensor
 from torch.nn import functional as F
@@ -29,6 +30,9 @@ def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, arti
 
     graph_list = load_graph_list(dir_path, dataset_name)
 
+    if "pos_enc" in feature_params["features_to_consider"]:
+        add_positional_encoding(graph_list)
+
     class_to_label_dict = get_classes_to_label_dict(graph_list)
     data_list = to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes)
 
@@ -40,6 +44,36 @@ def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, arti
     )
 
     return data_list, class_to_label_dict
+
+
+def add_positional_encoding(graph_list: List[nx.Graph], num_features=5):
+
+    for graph in graph_list:
+
+        positional_encodings = get_positional_encoding_from_nx(graph, num_features=num_features)
+
+        graph.graph["pos_enc"] = positional_encodings
+
+
+def get_positional_encoding_from_nx(graph, num_features):
+    laplacian = nx.laplacian_matrix(graph).asfptype()
+
+    if graph.number_of_nodes() > 2:
+        eigenvals, eigenvecs = scipy.sparse.linalg.eigsh(laplacian, k=2, which="SM")
+        principal_eigenvec = eigenvecs.transpose()[1]
+    else:
+        laplacian = laplacian.todense()
+        eigenvals, eigenvecs = np.linalg.eig(laplacian)
+        principal_eigenvec = np.array(eigenvecs.transpose()[1]).squeeze(axis=0)
+
+    positional_encodings = []
+    for k in range(1, num_features + 1):
+        kth_pos_enc = np.cos(principal_eigenvec * 2 * np.pi * k)
+        positional_encodings.append(kth_pos_enc)
+
+    positional_encodings = np.stack(positional_encodings, axis=1)
+
+    return torch.tensor(positional_encodings, dtype=torch.float32)
 
 
 def load_graph_list(dir_path, dataset_name):
@@ -80,14 +114,21 @@ def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator
         edge_index = get_edge_index_from_nx(G, add_aggregator_nodes)
         label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
 
-        data = Data(
-            edge_index=edge_index,
-            num_nodes=G.number_of_nodes(),
-            y=label,
-            degrees=get_degree_tensor_from_nx(G),
-            tags=get_tag_tensor_from_nx(G),
-            num_cycles=get_num_cycles_from_nx(G, feature_params["max_considered_cycle_len"]),
-        )
+        data_args = {
+            "edge_index": edge_index,
+            "num_nodes": G.number_of_nodes(),
+            "y": label,
+            "degrees": get_degree_tensor_from_nx(G),
+            "tags": get_tag_tensor_from_nx(G),
+        }
+
+        if "pos_enc" in feature_params["features_to_consider"]:
+            data_args["pos_enc"] = G.graph["pos_enc"].transpose(1, 0)
+
+        if "num_cycles" in feature_params["features_to_consider"]:
+            data_args["num_cycles"] = (get_num_cycles_from_nx(G, feature_params["max_considered_cycle_len"]),)
+
+        data = Data(**data_args)
 
         data_list.append(data)
 
@@ -218,9 +259,14 @@ def set_node_features(
         one_hot_degrees = get_one_hot_attrs(all_degrees, data_list)
         all_node_features = initialize_or_concatenate(all_node_features, one_hot_degrees)
 
+    if "pos_enc" in feature_params["features_to_consider"]:
+        for k in range(feature_params["num_pos_encs"]):
+            pos_encs = [data.pos_enc[k].unsqueeze(1) for data in data_list]
+            all_node_features = initialize_or_concatenate(all_node_features, pos_encs)
+
     if "num_cycles" in feature_params["features_to_consider"]:
         for k in range(1, feature_params["max_considered_cycle_len"]):
-            num_cycles = [data.num_cycles[k] for data in data_list]
+            num_cycles = [data.num_cycles[k].unsqueeze(1) for data in data_list]
             all_node_features = initialize_or_concatenate(all_node_features, num_cycles)
 
     for data, node_features in zip(data_list, all_node_features):
@@ -238,12 +284,14 @@ def set_node_features(
 
             data.num_nodes = data.num_nodes + 1
             node_features = torch.cat((node_features, aggregator_node_features), dim=0)
+
         data["x"] = node_features
         # TODO: check if this must be updated when adding aggregator edges
         data["num_sample_edges"] = data.edge_index.shape[1]
         data["degrees"] = None
         data["tags"] = None
         data["num_cycles"] = None
+        data["pos_enc"] = None
 
 
 def initialize_or_concatenate(all_node_features, feature_to_add):
@@ -389,6 +437,10 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
                     G, max_considered_cycle_len=feature_params["max_considered_cycle_len"]
                 )
                 node_features = torch.cat((node_features, num_cycles.t()), dim=1)
+
+            if "pos_enc" in feature_params["features_to_consider"]:
+                pos_enc = get_positional_encoding_from_nx(G, num_features=feature_params["num_pos_encs"])
+                node_features = torch.cat((node_features, pos_enc), dim=1)
 
             data = Data(
                 x=node_features,
