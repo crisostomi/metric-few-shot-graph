@@ -6,7 +6,7 @@
 
 defaults:
   - _self_
-  - model: adaptive_protonet
+  - model: tadam
   - data: r52
 
 data:
@@ -17,8 +17,10 @@ data:
     features_to_consider:
       - degree
       - tags
+#      - pos_enc
 #      - num_cycles
     max_considered_cycle_len: 4
+    num_pos_encs: 1
 
   add_artificial_nodes: ${oc.select:nn.model.add_artificial_nodes, false}
   artificial_node_features: zeros # zeros, ones, mean

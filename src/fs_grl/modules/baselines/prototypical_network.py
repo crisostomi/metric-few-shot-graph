@@ -9,8 +9,15 @@ from fs_grl.modules.similarities.squared_l2 import squared_l2
 
 
 class PrototypicalNetwork(GNNEmbeddingSimilarity):
-    def __init__(self, cfg, feature_dim, num_classes, loss_weights, **kwargs):
-        super().__init__(cfg, feature_dim=feature_dim, num_classes=num_classes, loss_weights=loss_weights, **kwargs)
+    def __init__(self, cfg, feature_dim, num_classes, metric_scaling_factor, loss_weights, **kwargs):
+        super().__init__(
+            cfg,
+            feature_dim=feature_dim,
+            num_classes=num_classes,
+            metric_scaling_factor=metric_scaling_factor,
+            loss_weights=loss_weights,
+            **kwargs
+        )
         self.loss_func = CrossEntropyLoss()
 
     def forward(self, batch: EpisodeBatch):

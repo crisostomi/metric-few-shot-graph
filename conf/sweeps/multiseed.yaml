@@ -1,0 +1,25 @@
+program: src/fs_grl/run_dml.py
+
+command:
+  - python3
+  - ${program}
+  - +is_sweep=true
+
+method: grid
+
+project: fs-grl
+entity: gladia
+
+metric:
+  name: loss/val_epoch
+  goal: minimize
+
+parameters:
+
+  train.seed_index:
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4

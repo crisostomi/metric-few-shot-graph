@@ -23,7 +23,7 @@ class GraphEmbedder(nn.Module):
     def embedding_dim(self):
         return self.node_embedder.embedding_dim
 
-    def forward(self, batch):
+    def forward(self, batch, gammas=None, betas=None):
         """
         Embeds a batch of graphs given as a single large graph
 
@@ -31,7 +31,7 @@ class GraphEmbedder(nn.Module):
         :return: embedded graphs, each graph embedded as a point in R^{E}
         """
 
-        node_embeddings = self.node_embedder(batch)
+        node_embeddings = self.node_embedder(batch, gammas, betas)
 
         # pooled_out ~ (num_samples_in_batch, embedding_dim)
         pooling_args = self.get_pooling_args(node_embeddings, batch)

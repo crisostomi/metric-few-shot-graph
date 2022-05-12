@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torch_geometric.nn import GINConv, JumpingKnowledge
 
@@ -16,7 +17,8 @@ class NodeEmbedder(nn.Module):
         num_convs,
         dropout_rate,
         do_preprocess,
-        batch_norm="none",
+        conv_norm,
+        postproc_mlp_norm,
         jump_mode="cat",
         non_linearity=nn.ReLU,
     ):
@@ -29,7 +31,6 @@ class NodeEmbedder(nn.Module):
         self.num_gin_mlp_layers = num_gin_mlp_layers
         self.jump_mode = jump_mode
         self.do_preprocess = do_preprocess
-        self.batch_norm = batch_norm
         self.non_linearity = non_linearity
 
         self.preprocess_mlp = (
@@ -38,7 +39,7 @@ class NodeEmbedder(nn.Module):
                 input_dim=self.feature_dim,
                 output_dim=self.hidden_dim,
                 hidden_dim=self.hidden_dim,
-                batch_norm=self.batch_norm,
+                norm=conv_norm,
                 non_linearity=self.non_linearity,
             )
             if do_preprocess
@@ -54,9 +55,9 @@ class NodeEmbedder(nn.Module):
                     input_dim=input_dim,
                     output_dim=self.hidden_dim,
                     hidden_dim=self.hidden_dim,
-                    batch_norm=self.batch_norm,
+                    norm=conv_norm,
                     non_linearity=self.non_linearity,
-                )
+                ),
             )
             self.convs.append(conv)
 
@@ -72,17 +73,20 @@ class NodeEmbedder(nn.Module):
             input_dim=after_conv_dim,
             output_dim=self.embedding_dim,
             hidden_dim=self.hidden_dim,
-            batch_norm="layer",
+            norm=postproc_mlp_norm,
             non_linearity=self.non_linearity,
         )
 
         self.jumping_knowledge = JumpingKnowledge(mode=self.jump_mode) if self.jump_mode != "none" else None
 
-    def forward(self, batch):
+    def forward(self, batch, gammas: torch.Tensor = None, betas: torch.Tensor = None) -> torch.Tensor:
         """
         Embeds a batch of graphs given as a single large graph
 
         :param batch: Batch containing graphs to embed
+        :param gammas: (num_graphs_in_batch, embedding_dim, num_convs)
+        :param betas: (num_graphs_in_batch, embedding_dim, num_convs)
+
         :return:
         """
 
@@ -93,15 +97,21 @@ class NodeEmbedder(nn.Module):
         h = self.preprocess_mlp(X) if self.do_preprocess else X
         jump_xs = [X, h] if self.do_preprocess else [X]
 
-        for conv in self.convs:
+        for ind, conv in enumerate(self.convs):
             h = conv(h, edge_index)
+            if gammas is not None and betas is not None:
+                h = h * gammas[ind] + betas[ind]
             jump_xs.append(h)
 
         if self.jump_mode != "none":
             h = self.jumping_knowledge(jump_xs)
 
         h = self.dropout(h)
+
         # out ~ (num_nodes_in_batch, output_dim)
         node_out_features = self.postprocess_mlp(h)
+
+        if gammas is not None and betas is not None:
+            node_out_features = node_out_features * gammas[-1] + betas[-1]
 
         return node_out_features
