@@ -11,44 +11,55 @@ project: fs-grl
 entity: gladia
 
 metric:
-  name: loss/val/classification_loss
-  goal: minimize
+  name: val/acc/macro_epoch
+  goal: maximize
 
 parameters:
 
-  nn.model.tadam.optimizer.lr:
+  nn.model.optimizer.lr:
     distribution: log_uniform_values
     min: 1e-6
     max: 1e-2
 
-  nn.model.tadam.loss_weights.latent_mixup_reg:
-    distribution: uniform
-    min: 0.0
-    max: 1.0
+#  nn.model.model.loss_weights.latent_mixup_reg:
+#    distribution: uniform
+#    min: 0.0
+#    max: 1.0
+#
+#  nn.model.model.embedder.node_embedder.hidden_dim:
+#    distribution: categorical
+#    values:
+#      - 32
+#      - 64
+#      - 128
+#
+#  nn.model.model.embedder.node_embedder.embedding_dim:
+#    distribution: categorical
+#    values:
+#      - 32
+#      - 64
+#      - 128
+#
+#  nn.model.model.embedder.node_embedder.num_convs:
+#    distribution: categorical
+#    values:
+#      - 1
+#      - 2
+#      - 3
+#
+#  nn.model.model.loss_weights.film_reg:
+#    distribution: uniform
+#    min: 0.0
+#    max: 1.0
 
-  nn.model.tadam.embedder.node_embedder.hidden_dim:
-    distribution: categorical
-    values:
-      - 32
-      - 64
-      - 128
+#  nn.model.model.embedder.pooling:
+#    values:
+#      - nn/model/mean
+#      - nn/model/sum
+#      - nn/model/addvar
 
-  nn.model.tadam.embedder.node_embedder.embedding_dim:
-    distribution: categorical
+  nn/model/pooling:
     values:
-      - 32
-      - 64
-      - 128
-
-  nn.model.tadam.embedder.node_embedder.num_convs:
-    distribution: categorical
-    values:
-      - 1
-      - 2
-      - 3
-
-  nn.model.tadam.embedder.node_embedder.non_linearity:
-    distribution: categorical
-    values:
-      - torch.nn.ReLU
-      - torch.nn.SiLU
+      - mean
+      - sum
+      - addvar

@@ -225,11 +225,11 @@ def get_num_cycles_from_nx(G: nx.Graph, max_considered_cycle_len) -> Tensor:
     A_k = torch.clone(A)
 
     num_cycles = []
-    for k in range(max_considered_cycle_len):
+    for k in range(2, max_considered_cycle_len + 1):
         A_k = A_k.t() @ A
         num_cycles_len_k = A_k.diagonal()
 
-        num_cycles.append(torch.tensor(num_cycles_len_k))
+        num_cycles.append(num_cycles_len_k)
 
     return torch.stack(num_cycles, dim=0)
 
@@ -452,6 +452,69 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
             data_list.append(data)
 
     return data_list
+
+
+# def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features):
+#     data_list = []
+#
+#     max_num_cycles_length_k = {k: 0 for k in range(2, feature_params["max_considered_cycle_len"] + 1)}
+#
+#     for cls, graph_indices in graph_set["label2graphs"].items():
+#
+#         for graph_idx in graph_indices:
+#
+#             nodes_global_to_local_map = {
+#                 global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
+#             }
+#             edge_indices = torch.tensor(graph_set["graph2edges"][graph_idx], dtype=torch.long)
+#             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
+#
+#             num_nodes = len(nodes_global_to_local_map)
+#
+#             edge_index = edge_indices.t().contiguous()
+#
+#             G = create_networkx_graph(num_nodes, edge_indices)
+#
+#             node_features = get_node_features(
+#                 graph_set=graph_set,
+#                 node_attrs=node_attrs,
+#                 graph_idx=graph_idx,
+#                 add_aggregator_nodes=add_aggregator_nodes,
+#                 artificial_node_features=artificial_node_features,
+#             )
+#             assert node_features.size(0) == num_nodes
+#
+#             # TODO: remove
+#             feature_dim = node_features.size(1)
+#
+#             if "num_cycles" in feature_params["features_to_consider"]:
+#                 num_cycles = get_num_cycles_from_nx(
+#                     G,
+#                     max_considered_cycle_len=feature_params["max_considered_cycle_len"],
+#                     max_num_cycles_length_k=max_num_cycles_length_k,
+#                 )
+#                 node_features = torch.cat((node_features, num_cycles.t()), dim=1)
+#
+#             if "pos_enc" in feature_params["features_to_consider"]:
+#                 pos_enc = get_positional_encoding_from_nx(G, num_features=feature_params["num_pos_encs"])
+#                 node_features = torch.cat((node_features, pos_enc), dim=1)
+#
+#             data = Data(
+#                 x=node_features,
+#                 edge_index=edge_index,
+#                 num_nodes=num_nodes,
+#                 y=torch.tensor(cls, dtype=torch.long),
+#             )
+#
+#             data_list.append(data)
+#
+#     K = feature_params["max_considered_cycle_len"]
+#     for data in data_list:
+#
+#         for ind, k in enumerate(range(2, K + 1)):
+#             data.x[:, ind + feature_dim] = data.x[:, ind + feature_dim] / max_num_cycles_length_k[k]
+#
+#     return data_list
 
 
 def create_networkx_graph(num_nodes, edge_indices):

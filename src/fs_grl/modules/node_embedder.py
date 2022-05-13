@@ -101,12 +101,11 @@ class NodeEmbedder(nn.Module):
             h = conv(h, edge_index)
             if gammas is not None and betas is not None:
                 h = h * gammas[ind] + betas[ind]
+            h = self.dropout(h)
             jump_xs.append(h)
 
         if self.jump_mode != "none":
             h = self.jumping_knowledge(jump_xs)
-
-        h = self.dropout(h)
 
         # out ~ (num_nodes_in_batch, output_dim)
         node_out_features = self.postprocess_mlp(h)

@@ -35,7 +35,7 @@ model:
       hidden_dim: 64
       embedding_dim: 64
       num_convs: 2
-      dropout_rate: 0.
+      dropout_rate: 0.0
       do_preprocess: false
       conv_norm: torch_geometric.nn.GraphNorm
       postproc_mlp_norm: torch.nn.LayerNorm

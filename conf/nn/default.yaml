@@ -17,8 +17,9 @@ data:
     features_to_consider:
       - degree
       - tags
-#      - pos_enc
 #      - num_cycles
+#      - pos_enc
+
     max_considered_cycle_len: 4
     num_pos_encs: 1
 
@@ -49,6 +50,6 @@ data:
     test: 8
 
   batch_size:
-    train: 32
-    val: 32
-    test: 32
+    train: 20
+    val: 20
+    test: 20
