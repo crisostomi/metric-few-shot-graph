@@ -11,7 +11,7 @@ project: fs-grl
 entity: gladia
 
 metric:
-  name: val/acc/macro_epoch
+  name: test/acc/macro_epoch
   goal: maximize
 
 parameters:
@@ -25,13 +25,6 @@ parameters:
     distribution: uniform
     min: 0.0
     max: 1.0
-
-  nn.model.model.embedder.node_embedder.hidden_dim:
-    distribution: categorical
-    values:
-      - 32
-      - 64
-      - 128
 
   nn.model.model.embedder.node_embedder.embedding_dim:
     distribution: categorical
@@ -52,8 +45,39 @@ parameters:
     min: 0.0
     max: 1.0
 
-#  nn/model/pooling:
-#    values:
-#      - mean
-#      - sum
-#      - addvar
+  nn.model.model.metric_scaling_factor:
+    distribution: uniform
+    min: 0
+    max: 100
+
+  nn.model.model.beta_0_init:
+    distribution: uniform
+    min: 0.0
+    max: 10.0
+
+  nn.model.model.embedder.node_embedder.dropout_rate:
+    distribution: uniform
+    min: 0.0
+    max: 0.7
+
+  nn.model.model.embedder.node_embedder.jump_mode:
+    distribution: categorical
+    values:
+      - cat
+      - none
+
+  nn.data.batch_size.train:
+    distribution: categorical
+    values:
+      - 16
+      - 32
+
+  nn/model/pooling:
+    values:
+      - mean
+      - sum
+
+  nn.model.model.embedder.node_embedder.num_gin_mlp_layers:
+    values:
+      - 1
+      - 2

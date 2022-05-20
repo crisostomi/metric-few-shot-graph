@@ -115,7 +115,7 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         sampler_to_prototypes_distances = self.compute_sample_prototypes_correlations(
             sample, label_to_prototype_embeddings, batch
         )
-        sample_class_distr = torch.softmax(-sampler_to_prototypes_distances, dim=-1)
+        sample_class_distr = torch.softmax(-self.metric_scaling_factor * sampler_to_prototypes_distances, dim=-1)
 
         return sample_class_distr
 

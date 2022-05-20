@@ -72,8 +72,8 @@ def run(cfg: DictConfig) -> str:
         "log_model",
         "job",
     }
-    add_run_digest(cfg, keys_to_ignore)
     logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
+    add_run_digest(cfg, keys_to_ignore)
 
     seed_index_everything(cfg.train)
 

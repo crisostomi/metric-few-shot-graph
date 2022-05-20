@@ -146,9 +146,9 @@ class PrototypicalDML(abc.ABC, nn.Module):
         class_prototype_matrix = self.get_prototype_matrix_from_dict(label_to_prototype_embeddings)
 
         # shape (num_classes_per_episode)
-        similarities = self.get_sample_prototypes_correlations(sample, class_prototype_matrix, batch)
+        correlations = self.get_sample_prototypes_correlations(sample, class_prototype_matrix, batch)
 
-        return similarities
+        return correlations
 
     def compute_latent_mixup_reg(self, model_out: Dict, batch: EpisodeBatch):
         """

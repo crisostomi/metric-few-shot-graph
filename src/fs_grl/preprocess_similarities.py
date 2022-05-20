@@ -43,6 +43,7 @@ def run(cfg: DictConfig):
     prototypes = compute_global_prototypes(model, datamodule.data_list_by_base_label, datamodule.label_to_class_dict)
 
     torch.save(prototypes, cfg.nn.data.prototypes_path)
+    torch.save(model.model.metric_scaling_factor, cfg.nn.data.scaling_factor_path)
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")

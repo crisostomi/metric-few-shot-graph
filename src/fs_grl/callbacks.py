@@ -38,6 +38,8 @@ class TSNEPlot(Callback):
         val_dataset = self.sample_data_tsne(val_dataset, self.samples_per_class)
         novel_dataset = self.sample_data_tsne(novel_dataset, self.samples_per_class)
 
+        #
+
         dataset = train_dataset + val_dataset + novel_dataset
 
         dataloader = DataLoader(dataset)

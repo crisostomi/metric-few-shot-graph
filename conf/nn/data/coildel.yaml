@@ -17,3 +17,8 @@ test_episode_hparams:
   num_queries_per_class: 15
   num_classes_per_episode: 5
   num_supports_per_class: 10
+
+batch_size:
+  train: 32
+  val: 32
+  test: 1

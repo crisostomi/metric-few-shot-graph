@@ -21,6 +21,7 @@ def compute_global_prototypes(
     :return:
     """
     model.eval()
+    model.model.eval()
 
     prototypes = {}
 

@@ -10,7 +10,6 @@ import numpy as np
 import omegaconf
 import pytorch_lightning as pl
 import torch
-from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import T_co
 from torch_geometric.data import Data
@@ -19,6 +18,7 @@ from nn_core.common import PROJECT_ROOT
 
 from fs_grl.data.episode import Episode, EpisodeBatch, EpisodeHParams
 from fs_grl.data.utils import get_label_to_samples_map
+from fs_grl.modules.similarities.squared_l2 import squared_l2
 
 pylogger = logging.getLogger(__name__)
 
@@ -185,6 +185,8 @@ class CurriculumIterableEpisodicDataset(IterableEpisodicDataset):
 
         self.datamodule = datamodule
 
+        self.scaling_factor_path = "/".join(prototypes_path.split("/")[:-1]) + "/scaling_factor.pt"
+
         class_prototypes: Dict[str, torch.Tensor] = self.load_prototypes(prototypes_path)
         label_prototypes: Dict[int, torch.Tensor] = {
             self.class_to_label_dict[cls]: cls_prototype for cls, cls_prototype in class_prototypes.items()
@@ -198,6 +200,9 @@ class CurriculumIterableEpisodicDataset(IterableEpisodicDataset):
     def sample_labels(self):
 
         current_step = self.datamodule.trainer.global_step
+
+        # if current_step > self.max_difficult_step:
+        #     return super().sample_labels()
 
         first_label = np.random.choice(self.stage_labels, size=1)
         sampled_labels = [first_label.tolist()[0]]
@@ -223,13 +228,13 @@ class CurriculumIterableEpisodicDataset(IterableEpisodicDataset):
 
         repeated_prototypes = prototypes.repeat((len(self.stage_labels), 1))
 
-        similarities = torch.einsum(
-            "qh,qh->q", (F.normalize(interleaved_repeated_prototypes), F.normalize(repeated_prototypes))
-        ).reshape((len(self.stage_labels), len(self.stage_labels)))
+        scaling_factor = torch.load(self.scaling_factor_path)
+        distances = scaling_factor * squared_l2(interleaved_repeated_prototypes, repeated_prototypes).reshape(
+            (len(self.stage_labels), len(self.stage_labels))
+        )
 
-        max_val = similarities.max(-1)[0].unsqueeze(dim=0).transpose(1, 0)
-        min_val = -1 * torch.ones((len(self.stage_labels), 1))
-        similarities = (similarities - min_val) / (max_val - min_val)
+        similarities = 1 / (distances + 1)
+
         return similarities
 
     def load_prototypes(self, prototypes_path):
@@ -255,14 +260,18 @@ class CurriculumIterableEpisodicDataset(IterableEpisodicDataset):
             similarities_label_and_sampled = [
                 sim.item() for lbl, sim in self.label_similarity_dict[label].items() if lbl in sampled_labels
             ]
-            similarity_with_sampled = np.sum(np.exp(similarities_label_and_sampled))
+            # similarity_with_sampled = np.sum(np.exp(similarities_label_and_sampled))
+            similarity_with_sampled = np.sum(similarities_label_and_sampled)
 
             label_weight = self.weight_label(similarity_with_sampled, num_steps=t)
 
             label_weights[label] = label_weight
 
-        norm_factor = sum(math.exp(j) for j in label_weights.values())
-        label_probabilities = {k: math.exp(v) / norm_factor for k, v in label_weights.items()}
+        # norm_factor = sum(math.exp(j) for j in label_weights.values())
+        # label_probabilities = {k: math.exp(v) / norm_factor for k, v in label_weights.items()}
+        norm_factor = sum(j for j in label_weights.values())
+        label_probabilities = {k: v / norm_factor for k, v in label_weights.items()}
+
         label_probabilities_array = sorted([(k, v) for k, v in label_probabilities.items()], key=lambda t: t[0])
         label_probabilities_array = np.array([v for k, v in label_probabilities_array])
 

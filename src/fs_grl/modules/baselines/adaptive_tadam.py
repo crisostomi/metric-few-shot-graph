@@ -34,7 +34,7 @@ class AdaptiveTADAM(TADAM):
 
         self.TEN = TaskEmbeddingNetwork(
             in_size=self.embedder.embedding_dim,
-            hidden_size=self.embedder.embedding_dim // 2,
+            hidden_size=self.embedder.embedding_dim,
             embedding_dim=self.embedder.embedding_dim,
             num_convs=self.embedder.node_embedder.num_convs,
             beta_0_init=beta_0_init,

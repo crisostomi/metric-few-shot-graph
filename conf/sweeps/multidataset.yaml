@@ -16,10 +16,11 @@ metric:
 
 parameters:
 
-  train.seed_index:
+  nn/data:
     values:
-      - 0
-      - 1
-      - 2
-      - 3
-      - 4
+      - r52 # shannon
+      - coildel # erdos
+#      - triangles # turing 2
+#      - enzymes # shannon
+#      - letterhigh # lugano
+#      - reddit # erdos

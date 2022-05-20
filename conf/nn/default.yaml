@@ -1,13 +1,8 @@
-# when changing model:
-#   - change corresponding datamodule
-#       - distance metric learning --> GraphMetaDataModule
-#       - transfer learning --> GraphTransferDataModule
-#   - change max_epochs and patience accordingly to the convergence time of the model
 
 defaults:
   - _self_
-  - model: tadam
-  - data: r52
+  - data: triangles
+  - model: prototypical_network
 
 data:
   _target_: fs_grl.data.datamodule.GraphMetaDataModule
@@ -16,7 +11,7 @@ data:
   feature_params:
     features_to_consider:
       - degree
-      - tags
+#      - tags
 #      - num_cycles
 #      - pos_enc
 
@@ -28,19 +23,20 @@ data:
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
   prototypes_path: ${nn.data.data_dir}/prototypes.pt
+  scaling_factor_path: ${nn.data.data_dir}/scaling_factor.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
   curriculum_learning: false
-  max_difficult_step: 5000
+  max_difficult_step: 3000
   plot_graphs: false
 
   num_train_episodes: 2000
-  num_val_episodes: 2000
-  num_test_episodes: 10000
+  num_val_episodes: 500
+  num_test_episodes: 5000
   support_ratio: 0.8
 
   separated_query_support: false
   query_support_split_path: null
-  train_ratio: 0.85
+  train_ratio: 0.80
 
   gpus: ${train.trainer.gpus}
 
@@ -50,6 +46,6 @@ data:
     test: 8
 
   batch_size:
-    train: 20
-    val: 20
-    test: 20
+    train: 32
+    val: 32
+    test: 32

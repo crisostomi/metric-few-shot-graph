@@ -5,7 +5,7 @@ trainer:
   fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 200
+  max_epochs: 300  # 200 for everyone, 50 for reddit
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
@@ -51,7 +51,7 @@ callbacks:
 
 distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 10 # 50 for TL, 5 for DML
+    patience: 40 # 3 only for reddit, 25 otherwise
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -69,10 +69,10 @@ distance-metric-learning-callbacks:
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20
 
-  - _target_: fs_grl.callbacks.TSNEPlot
-    samples_per_class: 100
-    colors_path: ${oc.env:PROJECT_ROOT}/data/colors/${nn.data.dataset_name}.json
-    threedimensional: false
+#  - _target_: fs_grl.callbacks.TSNEPlot
+#    samples_per_class: 100
+#    colors_path: ${oc.env:PROJECT_ROOT}/data/colors/${nn.data.dataset_name}.json
+#    threedimensional: false
 
 meta-testing-callbacks:
 

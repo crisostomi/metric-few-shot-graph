@@ -1,7 +1,3 @@
-defaults:
-  - pooling: mean
-  - _self_
-
 _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
@@ -34,7 +30,8 @@ model:
 
   embedder:
     _target_: fs_grl.modules.graph_embedder.GraphEmbedder
-    pooling: ${nn.model.pooling}
+    pooling:
+      _target_: fs_grl.modules.pooling.mean.GlobalMeanPool
     feature_dim: ???
 
     node_embedder:

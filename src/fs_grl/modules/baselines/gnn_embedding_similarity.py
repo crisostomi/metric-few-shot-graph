@@ -36,7 +36,11 @@ class GNNEmbeddingSimilarity(PrototypicalDML, abc.ABC):
 
         self.supports_aggregation = supports_aggregation
         self.prototypes_from_nodes = prototypes_from_nodes
-        self.register_parameter("metric_scaling_factor", nn.Parameter(torch.tensor(metric_scaling_factor)))
+
+        if metric_scaling_factor is not None:
+            self.register_parameter("metric_scaling_factor", nn.Parameter(torch.tensor(metric_scaling_factor)))
+        else:
+            self.metric_scaling_factor = 1.0
 
         if self.supports_aggregation == "deepsets":
 

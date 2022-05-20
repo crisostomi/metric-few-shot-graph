@@ -3,8 +3,6 @@ defaults:
   - _self_
 
 _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
-artificial_regularizer_weight: 0.5
-intra_class_variance_weight: 0.0
 
 optimizer:
   _target_: torch.optim.Adam
@@ -16,6 +14,12 @@ model:
   num_classes: ???
   margin: 0.5
   num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
+  metric_scaling_factor: 7.5
+
+  loss_weights:
+    classification_loss: 1.0
+    latent_mixup_reg: 0.0
+    intraclass_var_reg: 0.0
 
   embedder:
     _target_: fs_grl.modules.graph_embedder.GraphEmbedder
@@ -25,12 +29,13 @@ model:
     node_embedder:
       _target_: fs_grl.modules.node_embedder.NodeEmbedder
       feature_dim: ???
-      hidden_dim: 64
       embedding_dim: 64
+      hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}
       num_convs: 2
-      dropout_rate: 0.
+      dropout_rate: 0.0
       do_preprocess: false
-      batch_norm: graph
+      conv_norm: torch_geometric.nn.GraphNorm
+      postproc_mlp_norm: torch.nn.LayerNorm
       num_preproc_mlp_layers: 1
       num_postproc_mlp_layers: 2
       num_gin_mlp_layers: 2
