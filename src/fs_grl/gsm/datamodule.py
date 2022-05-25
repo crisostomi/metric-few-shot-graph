@@ -11,6 +11,7 @@ import torch
 from networkx import normalized_laplacian_matrix
 from omegaconf import DictConfig
 from sklearn.cluster import AgglomerativeClustering
+from tqdm import tqdm
 
 from fs_grl.data.datamodule import GraphTransferDataModule
 from fs_grl.data.episode import EpisodeHParams
@@ -104,9 +105,11 @@ class GSMDataModule(GraphTransferDataModule):
         :return:
         """
 
+        pylogger.info("Computing spectral prototypes")
+
         graph_eigenvals_by_label = {label: [] for label in self.graph_list_by_label.keys()}
 
-        for label, label_graph_list in self.graph_list_by_label.items():
+        for label, label_graph_list in tqdm(self.graph_list_by_label.items()):
 
             for G in label_graph_list:
 
@@ -119,7 +122,7 @@ class GSMDataModule(GraphTransferDataModule):
 
         label_to_prototype_index_dict = {}
 
-        for label, label_graphs_eigenvals in graph_eigenvals_by_label.items():
+        for label, label_graphs_eigenvals in tqdm(graph_eigenvals_by_label.items()):
 
             all_distances = self.compute_spectral_distances(label_graphs_eigenvals)
 

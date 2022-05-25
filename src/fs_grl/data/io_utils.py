@@ -9,6 +9,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 from torch_geometric.data import Data
+from torch_geometric.utils import to_networkx
 
 
 class Node:
@@ -390,9 +391,24 @@ def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_node
     data_list += graph_dict_to_data_list(
         novel_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features
     )
+
     assert len(data_list) == len(base_set["graph2nodes"]) + len(val_set["graph2nodes"]) + len(novel_set["graph2nodes"])
 
     return data_list, classes_split
+
+
+def data_list_to_graph_list(data_list: List[Data]) -> List[nx.Graph]:
+
+    graph_list = []
+
+    for data_ind, data in enumerate(data_list):
+
+        graph = to_networkx(data, to_undirected=True)
+        graph.graph["class"] = data.y.item()
+        graph.graph["dataset_index"] = data_ind
+        graph_list.append(graph)
+
+    return graph_list
 
 
 def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features):
@@ -401,7 +417,6 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
     for cls, graph_indices in graph_set["label2graphs"].items():
 
         for graph_idx in graph_indices:
-
             nodes_global_to_local_map = {
                 global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
             }

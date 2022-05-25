@@ -25,6 +25,7 @@ from fs_grl.data.dataset import (
 )
 from fs_grl.data.episode import EpisodeHParams
 from fs_grl.data.io_utils import (
+    data_list_to_graph_list,
     get_classes_to_label_dict,
     graph_list_to_data_list,
     load_graph_list,
@@ -195,6 +196,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 add_aggregator_nodes=add_artificial_nodes,
                 artificial_node_features=artificial_node_features,
             )
+            self.graph_list: List[nx.Graph] = data_list_to_graph_list(self.data_list)
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
             self.class_to_label_dict = {str(cls): cls for classes in self.classes_split.values() for cls in classes}
             self.labels_split = self.classes_split
