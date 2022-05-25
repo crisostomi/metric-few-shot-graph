@@ -1,35 +1,59 @@
-source:
-  _target_: fs_grl.pl_modules.transfer_learning_source.TransferLearningSource
+defaults:
+  - pooling: mean
+  - _self_
 
-  classifier_num_mlp_layers: 2
+source:
+  _target_: fs_grl.pl_modules.simple_source.SimpleSource
 
   optimizer:
     _target_: torch.optim.Adam
     lr: 1e-4
 
   embedder:
-    _target_: fs_grl.modules.gnn_embedder.GNNEmbedder
+    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    pooling: ${nn.model.pooling}
     feature_dim: ???
-    num_mlp_layers: 2
-    embedding_dim: 64
-    hidden_dim: 64
-    num_convs: 2
-    dropout_rate: 0.5
-    do_preprocess: false
 
-#  lr_scheduler:
-#    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
-#    T_0: 10
-#    T_mult: 2
-#    eta_min: 0 # min value for the lr
-#    last_epoch: -1
-#    verbose: False
+    node_embedder:
+      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      feature_dim: ???
+      embedding_dim: 64
+      hidden_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
+      num_convs: 2
+      dropout_rate: 0.0
+      do_preprocess: false
+      conv_norm: torch_geometric.nn.GraphNorm
+      postproc_mlp_norm: torch.nn.LayerNorm
+      num_preproc_mlp_layers: 1
+      num_postproc_mlp_layers: 2
+      num_gin_mlp_layers: 2
+      jump_mode: cat
+      non_linearity:
+        _target_: torch.nn.ReLU
+
+  classifier:
+    _target_: fs_grl.modules.mlp.MLP
+    num_layers: 2
+    input_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
+    output_dim: ??
+    hidden_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
+    non_linearity:
+      _target_: torch.nn.ReLU
 
 target:
-  _target_: fs_grl.pl_modules.transfer_learning_target.TransferLearningTarget
+  _target_: fs_grl.pl_modules.simple_target.SimpleTarget
 
   embedder: ???
-  classifier_num_mlp_layers: 2
+
+  classifier:
+    _target_: fs_grl.modules.mlp.MLP
+    num_layers: 2
+    input_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
+    output_dim: ??
+    hidden_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
+    non_linearity:
+      _target_: torch.nn.ReLU
+
   initial_state_path: ${core.storage_dir}/pretrained.ckpt
 
   optimizer:

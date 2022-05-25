@@ -18,7 +18,7 @@ class Node:
         self.attrs = attrs
 
 
-def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, artificial_node_features):
+def graph_list_to_data_list(graph_list, feature_params, add_aggregator_nodes, artificial_node_features):
     """
     Loads a TU graph dataset.
 
@@ -28,13 +28,10 @@ def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, arti
     :return:
     """
 
-    graph_list = load_graph_list(dir_path, dataset_name)
-
     if "pos_enc" in feature_params["features_to_consider"]:
         add_positional_encoding(graph_list)
 
-    class_to_label_dict = get_classes_to_label_dict(graph_list)
-    data_list = to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes)
+    data_list = to_data_list(graph_list, feature_params, add_aggregator_nodes)
 
     set_node_features(
         data_list,
@@ -43,7 +40,7 @@ def load_data(dir_path, dataset_name, feature_params, add_aggregator_nodes, arti
         artificial_node_features=artificial_node_features,
     )
 
-    return data_list, class_to_label_dict
+    return data_list
 
 
 def add_positional_encoding(graph_list: List[nx.Graph], num_features=5):
@@ -94,12 +91,14 @@ def load_graph_list(dir_path, dataset_name):
         for graph_ind in range(num_graphs):
 
             graph: nx.Graph = parse_graph(f)
+            graph.graph["dataset_index"] = graph_ind
+
             graph_list.append(graph)
 
     return graph_list
 
 
-def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator_nodes) -> List[Data]:
+def to_data_list(graph_list, feature_params, add_aggregator_nodes) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -112,7 +111,7 @@ def to_data_list(graph_list, class_to_label_dict, feature_params, add_aggregator
 
     for G in graph_list:
         edge_index = get_edge_index_from_nx(G, add_aggregator_nodes)
-        label = torch.tensor(class_to_label_dict[G.graph["class"]], dtype=torch.long).unsqueeze(0)
+        label = torch.tensor(G.graph["class"], dtype=torch.long).unsqueeze(0)
 
         data_args = {
             "edge_index": edge_index,

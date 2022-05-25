@@ -1,7 +1,8 @@
 import math
 from random import shuffle
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple, Union
 
+import networkx as nx
 import numpy as np
 import torch
 from torch_geometric.data import Data
@@ -67,8 +68,16 @@ def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
     """
     res = {}
     for sample in annotated_samples:
-        res.setdefault(sample.y.item(), []).append(sample)
+        y = get_label_from_graph(sample)
+        res.setdefault(y, []).append(sample)
     return res
+
+
+def get_label_from_graph(graph: Union[nx.Graph, Data]) -> int:
+    if isinstance(graph, nx.Graph):
+        return graph.graph["class"]
+    else:
+        return graph.y.item()
 
 
 def get_lens_from_batch_assignment(batch_assignment):

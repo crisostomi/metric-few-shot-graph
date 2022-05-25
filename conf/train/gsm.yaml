@@ -13,13 +13,13 @@ trainer:
   log_every_n_steps: 1
   deterministic: ${train.deterministic}
 
+fine_tuning_epochs: 20
 meta-testing-trainer:
   gpus: ${train.trainer.gpus}
   precision: ${train.trainer.precision}
   max_epochs: 1
   deterministic: ${train.deterministic}
   log_every_n_steps: 1
-
 
 restore:
   ckpt_or_run_path: null
@@ -31,7 +31,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 50 # 50 for TL, 5 for DML
+    patience: 30
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -48,31 +48,6 @@ callbacks:
 
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20
-
-distance-metric-learning-callbacks:
-  - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 40 # 3 only for reddit, 25 otherwise
-    verbose: False
-    monitor: ${train.monitor.metric}
-    mode: ${train.monitor.mode}
-
-  - _target_: pytorch_lightning.callbacks.LearningRateMonitor
-    logging_interval: "step"
-    log_momentum: False
-
-  - _target_: pytorch_lightning.callbacks.ModelCheckpoint
-    save_top_k: 2
-    verbose: False
-    monitor: ${train.monitor.metric}
-    mode: ${train.monitor.mode}
-
-  - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
-    refresh_rate: 20
-
-#  - _target_: fs_grl.callbacks.TSNEPlot
-#    samples_per_class: 100
-#    colors_path: ${oc.env:PROJECT_ROOT}/data/colors/${nn.data.dataset_name}.json
-#    threedimensional: false
 
 meta-testing-callbacks:
 

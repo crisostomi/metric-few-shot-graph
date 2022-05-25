@@ -18,7 +18,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
 
         self.num_layers = num_layers
-        self.norm_class = eval(norm)
+        self.norm_class = eval(norm) if norm else None
 
         hidden_sizes = [hidden_dim for _ in range(num_layers - 1)] + [output_dim]
 

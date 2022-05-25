@@ -4,6 +4,7 @@ from typing import Dict, List
 
 import hydra
 import omegaconf
+import pytorch_lightning
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 from pytorch_lightning import Callback
@@ -16,10 +17,11 @@ from nn_core.serialization import NNCheckpointIO, load_model
 
 import fs_grl  # noqa
 from fs_grl.callbacks import build_callbacks, get_checkpoint_callback
-from fs_grl.pl_modules.simple_source import SimpleSource
-from fs_grl.utils import handle_fast_dev_run
+from fs_grl.data.datamodule import GraphFewShotDataModule
 
 # Force the execution of __init__.py if this file is executed directly.
+from fs_grl.modules.meta_learning_loop import CustomFitLoop
+from fs_grl.pl_modules.gsm_source import GraphSpectralMeasuresSource
 
 pylogger = logging.getLogger(__name__)
 
@@ -31,28 +33,26 @@ def run(cfg: DictConfig) -> str:
     Returns:
         the run directory inside the storage_dir used by the current experiment
     """
-    seed_index_everything(cfg.train)
+    template_core: NNTemplateCore = NNTemplateCore(
+        restore_cfg=cfg.train.get("restore", None),
+    )
 
-    fast_dev_run: bool = cfg.train.trainer.fast_dev_run
-    if fast_dev_run:
-        handle_fast_dev_run(cfg)
+    logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
+
+    seed_index_everything(cfg.train)
 
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 
     pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
 
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     pylogger.info(f"Instantiating <{cfg.nn.model.source['_target_']}>")
+
     model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model.source, _recursive_=False, metadata=metadata)
 
-    template_core: NNTemplateCore = NNTemplateCore(
-        restore_cfg=cfg.train.get("restore", None),
-    )
     callbacks: List[Callback] = build_callbacks(cfg.train.callbacks, template_core)
-
-    logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
 
     pylogger.info("Instantiating the <Trainer>")
     trainer = pl.Trainer(
@@ -69,7 +69,7 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("Starting meta-testing.")
 
     best_model_path = get_checkpoint_callback(callbacks).best_model_path
-    best_model = load_model(SimpleSource, checkpoint_path=Path(best_model_path + ".zip"))
+    best_model = load_model(GraphSpectralMeasuresSource, checkpoint_path=Path(best_model_path + ".zip"))
 
     callbacks: List[Callback] = build_callbacks(cfg.train["meta-testing-callbacks"], template_core)
 
@@ -93,9 +93,15 @@ def run(cfg: DictConfig) -> str:
         cfg.nn.model.target, _recursive_=False, metadata=metadata, embedder=best_model.embedder
     )
 
+    # Test with a fixed seed for reproducibility
+    pytorch_lightning.seed_everything(seed=0)
+    datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    datamodule.setup()
+
+    trainer.fit_loop = CustomFitLoop(fine_tuning_epochs=cfg.train.fine_tuning_epochs)
+
     trainer.fit(model=target_model, train_dataloader=datamodule.test_dataloader()[0])
 
-    # Mandatory for multi-run
     if logger is not None:
         logger.experiment.finish()
 
@@ -108,4 +114,5 @@ def main(cfg: omegaconf.DictConfig):
 
 
 if __name__ == "__main__":
+
     main()

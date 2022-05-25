@@ -1,3 +1,4 @@
+import itertools
 from abc import ABC
 from typing import Any, Sequence, Tuple, Union
 
@@ -7,13 +8,31 @@ import plotly.graph_objects as go
 import pytorch_lightning as pl
 import wandb
 from plotly.graph_objs.layout import Annotation
+from torch import nn
 from torch.optim import Optimizer
-from torchmetrics import ConfusionMatrix
+from torchmetrics import Accuracy, ConfusionMatrix, FBetaScore
 
 
 class MyLightningModule(pl.LightningModule, ABC):
     def __init__(self):
         super().__init__()
+
+        reductions = ["micro", "weighted", "macro", "none"]
+        metrics = (("F1", FBetaScore), ("acc", Accuracy))
+
+        self.val_metrics = nn.ModuleDict(
+            {
+                f"val/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
+                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
+            }
+        )
+        self.test_metrics = nn.ModuleDict(
+            {
+                f"test/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
+                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
+            }
+        )
+        self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
     def configure_optimizers(
         self,
@@ -126,3 +145,13 @@ class MyLightningModule(pl.LightningModule, ABC):
         )
 
         return fig
+
+    def log_losses(self, losses, split):
+        """
+
+        :param losses:
+        :param split:
+        :return:
+        """
+        for loss_name, loss_value in losses.items():
+            self.log_dict({f"loss/{split}/{loss_name}": loss_value}, on_epoch=True, on_step=True)

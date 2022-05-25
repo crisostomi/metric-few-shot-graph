@@ -1,0 +1,53 @@
+source:
+  _target_: fs_grl.pl_modules.gsm_source.GraphSpectralMeasuresSource
+
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.001
+    weight_decay: 1e-7
+
+
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.StepLR
+    step_size: 50
+    gamma: 0.01
+
+  embedder:
+    _target_: fs_grl.modules.baselines.graph_spectral_measures.GraphSpectralMeasures
+    feature_dim: ??
+    hidden_dim: 128
+    output_dim: ??
+    num_layers: 5
+    num_mlp_layers: 2
+    final_dropout: 0.5
+    learn_eps: false
+    graph_pooling_type: sum
+    neighbor_pooling_type: sum
+    knn_value: 2
+
+    gat_params:
+      num_gat_layers: 2
+      gat_out_dim: 128
+      gat_dropout: 0.5
+      gat_heads: 2
+      gat_leaky_slope: 0.1
+      gat_concat: 0
+
+target:
+
+  _target_: fs_grl.pl_modules.gsm_target.GraphSpectralMeasuresTarget
+
+  initial_state_path: ${core.storage_dir}/pretrained.ckpt
+
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.001
+    weight_decay: 1e-7
+
+
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.StepLR
+    step_size: 50
+    gamma: 0.1
+
+  embedder: ???

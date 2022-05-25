@@ -1,11 +1,8 @@
-import itertools
 import logging
 from typing import Any, Mapping, Optional
 
 import torch
 from hydra.utils import instantiate
-from torch import nn
-from torchmetrics import Accuracy, FBetaScore
 
 from nn_core.model_logging import NNLogger
 
@@ -43,22 +40,6 @@ class DistanceMetricLearning(MyLightningModule):
             num_classes_per_episode=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
-
-        reductions = ["micro", "weighted", "macro", "none"]
-        metrics = (("F1", FBetaScore), ("acc", Accuracy))
-        self.val_metrics = nn.ModuleDict(
-            {
-                f"val/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
-                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
-            }
-        )
-        self.test_metrics = nn.ModuleDict(
-            {
-                f"test/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
-                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
-            }
-        )
-        self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
 
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
         """
@@ -116,13 +97,3 @@ class DistanceMetricLearning(MyLightningModule):
         self.log_metrics(split="test", on_step=True, on_epoch=True, cm_reset=False)
 
         return step_out
-
-    def log_losses(self, losses, split):
-        """
-
-        :param losses:
-        :param split:
-        :return:
-        """
-        for loss_name, loss_value in losses.items():
-            self.log_dict({f"loss/{split}/{loss_name}": loss_value}, on_epoch=True, on_step=True)

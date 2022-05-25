@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import hydra
+import networkx as nx
 import omegaconf
 import pytorch_lightning as pl
 from hydra.utils import instantiate
@@ -23,7 +24,13 @@ from fs_grl.data.dataset import (
     VanillaGraphDataset,
 )
 from fs_grl.data.episode import EpisodeHParams
-from fs_grl.data.io_utils import load_data, load_pickle_data, load_query_support_idxs
+from fs_grl.data.io_utils import (
+    get_classes_to_label_dict,
+    graph_list_to_data_list,
+    load_graph_list,
+    load_pickle_data,
+    load_query_support_idxs,
+)
 from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed, random_split_sequence
 
 pylogger = logging.getLogger(__name__)
@@ -165,9 +172,13 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             # handle txt data
             self.classes_split = self.get_classes_split()
             self.base_classes, self.novel_classes = self.classes_split["base"], self.classes_split["novel"]
-            self.data_list, self.class_to_label_dict = load_data(
-                self.data_dir,
-                self.dataset_name,
+
+            self.graph_list: List[nx.Graph] = load_graph_list(self.data_dir, self.dataset_name)
+            self.class_to_label_dict = get_classes_to_label_dict(self.graph_list)
+            self.map_classes_to_labels()
+
+            self.data_list = graph_list_to_data_list(
+                graph_list=self.graph_list,
                 feature_params=feature_params,
                 add_aggregator_nodes=add_artificial_nodes,
                 artificial_node_features=artificial_node_features,
@@ -203,9 +214,14 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         pylogger.info(f"Base classes: {self.base_classes}, novel classes: {self.novel_classes}")
 
         self.data_list_by_label = get_label_to_samples_map(self.data_list)
+        self.graph_list_by_label = get_label_to_samples_map(self.graph_list)
 
         self.data_list_by_base_label = {
             label: data_list for label, data_list in self.data_list_by_label.items() if label in self.base_labels
+        }
+
+        self.graph_list_by_base_label = {
+            label: graph_list for label, graph_list in self.graph_list_by_label.items() if label in self.base_labels
         }
 
         self.train_ratio = train_ratio
@@ -233,6 +249,10 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
     def print_stats(self):
         pylogger.info(f"Read {len(self.data_list)} graphs.")
         pylogger.info(f"With label distribution: {Counter(sample.y.item() for sample in self.data_list)}")
+
+    def map_classes_to_labels(self):
+        for graph in self.graph_list:
+            graph.graph["class"] = self.class_to_label_dict[graph.graph["class"]]
 
     @property
     def feature_dim(self) -> int:
@@ -475,6 +495,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         support_ratio,
         test_episode_hparams: EpisodeHParams,
         num_train_episodes,
+        num_val_episodes,
         num_test_episodes,
         train_ratio,
         num_workers: DictConfig,
@@ -492,11 +513,14 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             support_ratio=support_ratio,
             train_ratio=train_ratio,
             num_train_episodes=num_train_episodes,
+            num_val_episodes=num_val_episodes,
             num_test_episodes=num_test_episodes,
             test_episode_hparams=test_episode_hparams,
             num_workers=num_workers,
             batch_size=batch_size,
             gpus=gpus,
+            add_artificial_nodes=False,
+            artificial_node_features=None,
         )
 
     def setup(self, stage: Optional[str] = None):

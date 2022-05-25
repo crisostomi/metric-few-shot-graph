@@ -1,25 +1,23 @@
-import itertools
 import logging
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import hydra
 import pytorch_lightning
 import torch
-import torchmetrics
+from hydra.utils import instantiate
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
-from torchmetrics import Accuracy, FBetaScore
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.pl_modules.transfer_learning import TransferLearningBaseline
+from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningTarget(TransferLearningBaseline):
+class SimpleTarget(TransferLearningTarget):
     def __init__(
         self,
         embedder: nn.Module,
@@ -28,44 +26,27 @@ class TransferLearningTarget(TransferLearningBaseline):
         *args,
         **kwargs,
     ):
-        super().__init__(metadata=metadata)
+        self.metadata = metadata
+
+        super().__init__(embedder=embedder, initial_state_path=initial_state_path, metadata=metadata)
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
-
-        self.embedder = embedder
-        self.freeze_embedder()
-
-        self.initial_state_path = initial_state_path
 
         self.classes = metadata.classes_split["novel"]
 
         self.log_prefix = "meta-testing"
-        reductions = ["micro", "weighted", "macro", "none"]
-        metrics = (("F1", FBetaScore), ("acc", Accuracy))
 
-        self.train_metrics = nn.ModuleDict(
-            {
-                f"{self.log_prefix}/train/{metric_name}/{reduction}": metric(
-                    num_classes=len(self.classes), average=reduction
-                )
-                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
-            }
-        )
+        self.embedder = embedder
+        self.freeze_embedder()
 
-        self.test_metrics = nn.ModuleDict(
-            {
-                f"{self.log_prefix}/test/{metric_name}/{reduction}": metric(
-                    num_classes=len(self.classes), average=reduction
-                )
-                for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
-            }
-        )
-        self.test_metrics[f"{self.log_prefix}/test/cm"] = torchmetrics.ConfusionMatrix(
-            num_classes=len(self.classes), normalize=None
-        )
+        self.classifier = instantiate(self.hparams.classifier, output_dim=len(self.classes))
+
+        self.loss_func = nn.CrossEntropyLoss()
+
+        self.save_initial_state()
 
     def save_initial_state(self):
-        pass
+        torch.save(self.state_dict(), self.initial_state_path)
 
     def forward(self, samples) -> Dict:
         """
