@@ -5,15 +5,16 @@ trainer:
   fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 100
+  max_epochs: 50 # specific to GSM
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
   val_check_interval: 1.0
   log_every_n_steps: 1
+  limit_train_batches: 10 # specific to GSM
   deterministic: ${train.deterministic}
 
-fine_tuning_epochs: 20
+fine_tuning_steps: 200 # 20 epochs * 10 steps per epoch in GSM
 meta-testing-trainer:
   gpus: ${train.trainer.gpus}
   precision: ${train.trainer.precision}
@@ -30,12 +31,6 @@ monitor:
   mode: 'min'
 
 callbacks:
-  - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 30
-    verbose: False
-    monitor: ${train.monitor.metric}
-    mode: ${train.monitor.mode}
-
   - _target_: pytorch_lightning.callbacks.ModelCheckpoint
     save_top_k: 2
     verbose: False

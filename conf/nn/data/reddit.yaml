@@ -21,9 +21,7 @@ test_episode_hparams:
 batch_size:
   train: 8
   val: 4
-#  test: 4
 
 
 num_train_episodes: 500
 num_val_episodes: 500
-num_test_episodes: 5000

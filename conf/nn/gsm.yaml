@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - data: letterhigh
+  - data: reddit
   - model: gsm
 
 
@@ -12,8 +12,6 @@ data:
     features_to_consider:
       - degree
       - tags
-#      - num_cycles
-#      - pos_enc
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
@@ -23,11 +21,11 @@ data:
   spectral_prototypes_path: ${nn.data.data_dir}/spectral_prototypes_indices.json
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
   num_clusters:
-    train: 3
+    train: 2
 
   num_train_episodes: 2000
   num_val_episodes: 500
-  num_test_episodes: 5000
+  num_test_episodes: 1000
   support_ratio: 0.8
 
   separated_query_support: false
@@ -42,6 +40,6 @@ data:
     test: 8
 
   batch_size:
-    train: 128
-    val: 128
+    train: 64
+    val: 64
     test: 1 # extremely important, otherwise model will see more than K samples for each class

@@ -13,7 +13,7 @@ _OUTPUTS_TYPE = List[Union[_OPTIMIZER_LOOP_OUTPUTS_TYPE, _MANUAL_LOOP_OUTPUTS_TY
 class CustomFitLoop(FitLoop):
     def __init__(
         self,
-        fine_tuning_epochs: int,
+        fine_tuning_steps: int,
         max_epochs: Optional[int] = None,
         min_epochs: Optional[int] = None,
         max_steps: int = -1,
@@ -28,16 +28,16 @@ class CustomFitLoop(FitLoop):
         super(CustomFitLoop, self).__init__(min_epochs=min_epochs, max_epochs=max_epochs)
 
         training_epoch_loop = TrainingEpochLoop(min_steps, max_steps)
-        training_batch_loop = CustomTrainingBatchLoop(fine_tuning_epochs)
+        training_batch_loop = CustomTrainingBatchLoop(fine_tuning_steps)
         training_validation_loop = EvaluationLoop()
         training_epoch_loop.connect(batch_loop=training_batch_loop, val_loop=training_validation_loop)
         self.connect(epoch_loop=training_epoch_loop)
 
 
 class CustomTrainingBatchLoop(TrainingBatchLoop):
-    def __init__(self, fine_tuning_epochs):
+    def __init__(self, fine_tuning_steps):
         super(CustomTrainingBatchLoop, self).__init__()
-        self.fine_tuning_epochs = fine_tuning_epochs
+        self.fine_tuning_steps = fine_tuning_steps
 
     def advance(self, batch: Any, batch_idx: int) -> None:  # type: ignore[override]
         """Runs the train step together with optimization (if necessary) on the current batch split.
@@ -52,7 +52,7 @@ class CustomTrainingBatchLoop(TrainingBatchLoop):
         # let logger connector extract current batch size
         self.trainer.logger_connector.on_train_split_start(self.split_idx, split_batch)
 
-        for _ in range(self.fine_tuning_epochs):
+        for _ in range(self.fine_tuning_steps):
             # choose which loop will run the optimization
             if self.trainer.lightning_module.automatic_optimization:
                 optimizers = _get_active_optimizers(

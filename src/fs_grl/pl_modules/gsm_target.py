@@ -84,7 +84,7 @@ class GraphSpectralMeasuresTarget(TransferLearningTarget):
             supports_and_queries, is_metatest=True
         )
 
-        logits, emb = self.classifier(output_embeds)
+        logits, embeddings = self.classifier(output_embeds)
 
         logits = logits[num_supports:]
         targets = batch.queries.y

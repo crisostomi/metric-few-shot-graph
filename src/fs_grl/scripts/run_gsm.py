@@ -98,7 +98,9 @@ def run(cfg: DictConfig) -> str:
     datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
     datamodule.setup()
 
-    trainer.fit_loop = CustomFitLoop(fine_tuning_epochs=cfg.train.fine_tuning_epochs)
+    trainer.fit_loop = CustomFitLoop(
+        fine_tuning_steps=cfg.train.fine_tuning_steps, max_epochs=cfg.train["meta-testing-trainer"].max_epochs
+    )
 
     trainer.fit(model=target_model, train_dataloader=datamodule.test_dataloader()[0])
 
