@@ -21,7 +21,7 @@ source:
     num_mlp_layers: 2
     final_dropout: 0.5
     learn_eps: false
-    graph_pooling_type: sum
+    graph_pooling_type: average # average or sum
     neighbor_pooling_type: sum
     knn_value: 2
 

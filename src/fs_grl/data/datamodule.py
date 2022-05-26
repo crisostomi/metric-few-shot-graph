@@ -114,8 +114,6 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         support_ratio,
         train_ratio,
         test_episode_hparams: EpisodeHParams,
-        num_train_episodes,
-        num_val_episodes,
         num_test_episodes,
         num_workers: DictConfig,
         batch_size: DictConfig,
@@ -154,8 +152,6 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.query_support_split_path = query_support_split_path
 
         self.test_episode_hparams = instantiate(test_episode_hparams)
-        self.num_train_episodes = num_train_episodes
-        self.num_val_episodes = num_val_episodes
         self.num_test_episodes = num_test_episodes
 
         self.support_ratio = support_ratio
@@ -366,8 +362,6 @@ class GraphMetaDataModule(GraphFewShotDataModule):
             classes_split_path=classes_split_path,
             query_support_split_path=query_support_split_path,
             test_episode_hparams=test_episode_hparams,
-            num_train_episodes=num_train_episodes,
-            num_val_episodes=num_val_episodes,
             num_test_episodes=num_test_episodes,
             separated_query_support=separated_query_support,
             support_ratio=support_ratio,
@@ -378,6 +372,8 @@ class GraphMetaDataModule(GraphFewShotDataModule):
         )
         self.train_episode_hparams = instantiate(train_episode_hparams)
         self.val_episode_hparams = instantiate(val_episode_hparams)
+        self.num_train_episodes = num_train_episodes
+        self.num_val_episodes = num_val_episodes
         self.curriculum_learning = curriculum_learning
         self.prototypes_path = prototypes_path
         self.max_difficult_step = max_difficult_step
@@ -496,8 +492,6 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         separated_query_support: bool,
         support_ratio,
         test_episode_hparams: EpisodeHParams,
-        num_train_episodes,
-        num_val_episodes,
         num_test_episodes,
         train_ratio,
         num_workers: DictConfig,
@@ -514,8 +508,6 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             separated_query_support=separated_query_support,
             support_ratio=support_ratio,
             train_ratio=train_ratio,
-            num_train_episodes=num_train_episodes,
-            num_val_episodes=num_val_episodes,
             num_test_episodes=num_test_episodes,
             test_episode_hparams=test_episode_hparams,
             num_workers=num_workers,
