@@ -19,7 +19,6 @@ class GraphSpectralMeasuresTarget(TransferLearningTarget):
         *args,
         **kwargs,
     ):
-        self.metadata = metadata
 
         super().__init__(embedder=embedder, initial_state_path=initial_state_path, metadata=metadata)
 

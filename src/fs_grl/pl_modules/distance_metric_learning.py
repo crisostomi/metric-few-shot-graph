@@ -8,12 +8,12 @@ from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.pl_modules.pl_module import MyLightningModule
+from fs_grl.pl_modules.pl_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class DistanceMetricLearning(MyLightningModule):
+class DistanceMetricLearning(BaseModule):
     logger: NNLogger
 
     def __init__(
@@ -22,11 +22,10 @@ class DistanceMetricLearning(MyLightningModule):
         *args,
         **kwargs,
     ) -> None:
-        super().__init__()
+
+        super().__init__(metadata)
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
-
-        self.metadata = metadata
 
         # classes should be sorted, might add an assert later
         self.classes = list(metadata.classes_to_label_dict.keys())

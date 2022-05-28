@@ -13,9 +13,11 @@ from torch.optim import Optimizer
 from torchmetrics import Accuracy, ConfusionMatrix, FBetaScore
 
 
-class MyLightningModule(pl.LightningModule, ABC):
-    def __init__(self):
+class BaseModule(pl.LightningModule, ABC):
+    def __init__(self, metadata):
         super().__init__()
+        self.save_hyperparameters()
+        self.metadata = metadata
 
         reductions = ["micro", "weighted", "macro", "none"]
         metrics = (("F1", FBetaScore), ("acc", Accuracy))

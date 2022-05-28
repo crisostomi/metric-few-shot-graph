@@ -3,15 +3,14 @@ from abc import ABC
 
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 
-from fs_grl.pl_modules.pl_module import MyLightningModule
+from fs_grl.pl_modules.pl_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningBaseline(MyLightningModule, ABC):
+class TransferLearningBaseline(BaseModule, ABC):
     def __init__(self, metadata):
-        self.metadata = metadata
-        super().__init__()
+        super().__init__(metadata)
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         self.log_metrics(split="val", on_step=False, on_epoch=True, cm_reset=True)

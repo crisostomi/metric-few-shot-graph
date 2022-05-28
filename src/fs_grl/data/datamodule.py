@@ -207,9 +207,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.base_labels, self.novel_labels = self.labels_split["base"], self.labels_split["novel"]
         self.val_labels = self.labels_split["val"] if "val" in self.labels_split.keys() else self.base_labels
 
-        pylogger.info(f"Class to dict mapping: {self.class_to_label_dict}")
-        pylogger.info(f"Base labels: {self.base_labels}, novel labels: {self.novel_labels}")
-        pylogger.info(f"Base classes: {self.base_classes}, novel classes: {self.novel_classes}")
+        self.print_sample_distributions()
 
         self.data_list_by_label = get_label_to_samples_map(self.data_list)
         self.graph_list_by_label = get_label_to_samples_map(self.graph_list)
@@ -223,6 +221,14 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         }
 
         self.train_ratio = train_ratio
+
+    def print_sample_distributions(self):
+        pylogger.info(f"Class to dict mapping: {self.class_to_label_dict}")
+        pylogger.info(f"Base labels: {self.base_labels}, novel labels: {self.novel_labels}")
+        pylogger.info(f"Base classes: {self.base_classes}, novel classes: {self.novel_classes}")
+        if "val" in self.labels_split:
+            pylogger.info(f"Validation labels: {self.val_labels}")
+        pylogger.info(f"Test labels: {self.novel_labels}")
 
     @property
     def metadata(self) -> MetaData:

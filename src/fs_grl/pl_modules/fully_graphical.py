@@ -11,12 +11,12 @@ from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule import MetaData
 from fs_grl.data.episode import EpisodeBatch
-from fs_grl.pl_modules.pl_module import MyLightningModule
+from fs_grl.pl_modules.pl_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class FullyGraphical(MyLightningModule):
+class FullyGraphical(BaseModule):
     logger: NNLogger
 
     def __init__(

@@ -6,7 +6,6 @@ source:
     lr: 0.001
     weight_decay: 1e-7
 
-
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
     step_size: 50

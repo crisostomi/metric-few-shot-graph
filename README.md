@@ -6,8 +6,7 @@
     <a href="https://black.readthedocs.io/en/stable/"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
-A new awesome project.
-
+Metric Based Few-Shot Graph Classification
 
 ## Installation
 

@@ -1,11 +1,11 @@
 
 defaults:
   - _self_
-  - data: coildel # pick one of the yamls in nn/data/
-  - model: best_params/${nn/data}
+  - data: triangles
+  - model: maml
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule #fs_grl.data.datamodule.GraphMetaDataModule
+  _target_: fs_grl.data.datamodule.GraphMetaDataModule
 
   dataset_name: ???
   feature_params:
@@ -18,16 +18,11 @@ data:
     max_considered_cycle_len: 4
     num_pos_encs: 1
 
-  add_artificial_nodes: ${oc.select:nn.model.add_artificial_nodes, false}
-  artificial_node_features: zeros # zeros, ones, mean
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
-  prototypes_path: ${nn.data.data_dir}/prototypes.pt
-  scaling_factor_path: ${nn.data.data_dir}/scaling_factor.pt
   best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
   curriculum_learning: false
   max_difficult_step: 3000
-  plot_graphs: false
 
   num_train_episodes: 2000
   num_val_episodes: 500
