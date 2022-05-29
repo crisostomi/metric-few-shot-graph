@@ -103,6 +103,11 @@ class EpisodeBatch:
         self.num_supports_per_episode = (
             self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
         )
+        self.num_samples_per_episode = {
+            "queries": self.num_queries_per_episode,
+            "supports": self.num_queries_per_episode,
+        }
+        self.samples = {"queries": self.queries, "supports": self.supports}
 
         self.num_episodes = num_episodes
         self.cosine_targets = cosine_targets
@@ -497,3 +502,16 @@ class EpisodeBatch:
                 attr.pin_memory()
 
         return self
+
+    def split_episode_to_graph(self, sample_type: str):
+        assert sample_type == "queries" or sample_type == "supports"
+
+        samples_batch = self.samples[sample_type]
+        samples_list = Batch.to_data_list(samples_batch)
+
+        num_samples_ep = self.num_samples_per_episode[sample_type]
+        samples_by_episode = [
+            samples_list[i * num_samples_ep : i * num_samples_ep + num_samples_ep] for i in range(self.num_episodes)
+        ]
+
+        return [sample_batch for sample_batch in samples_by_episode if len(sample_batch) > 0]

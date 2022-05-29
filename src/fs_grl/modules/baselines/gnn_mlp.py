@@ -2,6 +2,7 @@ import logging
 
 import torch.nn as nn
 from hydra.utils import instantiate
+from torch_geometric.data import Batch
 
 from fs_grl.modules.graph_embedder import GraphEmbedder
 
@@ -17,3 +18,11 @@ class GNN_MLP(nn.Module):
         )
 
         self.classifier = instantiate(cfg.classifier, output_dim=num_classes)
+
+    def forward(self, batch: Batch):
+
+        embeddings = self.embedder(batch)
+
+        logits = self.classifier(embeddings)
+
+        return logits

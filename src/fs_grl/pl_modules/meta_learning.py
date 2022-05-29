@@ -11,6 +11,7 @@ class MetaLearningModel(BaseModule):
 
         super().__init__(metadata)
         self.save_hyperparameters(logger=False, ignore=("metadata",))
+        self.automatic_optimization = False
 
     def forward(self, **kwargs) -> Dict[str, torch.Tensor]:
         """ """
@@ -20,7 +21,7 @@ class MetaLearningModel(BaseModule):
         raise NotImplementedError
 
     def training_step(self, batch: Any, batch_idx: int):
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(True, batch)
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=True, batch=batch)
 
         self.log_dict(
             {"metatrain/inner_loss": inner_loss.item(), "metatrain/inner_accuracy": inner_acc.compute()},
@@ -38,7 +39,7 @@ class MetaLearningModel(BaseModule):
     def validation_step(self, batch: Any, batch_idx: int):
         torch.set_grad_enabled(True)
         self.gnn_mlp.train()
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(False, batch)
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=False, batch=batch)
         self.log_dict(
             {"metaval/inner_loss": inner_loss.item(), "metaval/inner_accuracy": inner_acc.compute()}, prog_bar=False
         )
@@ -49,7 +50,7 @@ class MetaLearningModel(BaseModule):
     def test_step(self, batch: Any, batch_idx: int):
         torch.set_grad_enabled(True)
         self.gnn_mlp.train()
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(False, batch)
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=False, batch=batch)
         self.log_dict(
             {
                 "metatest/outer_loss": outer_loss.item(),
