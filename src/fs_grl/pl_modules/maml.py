@@ -82,12 +82,6 @@ class MAMLModel(MetaLearningModel):
                 test_logits = fmodel(episode_queries)
                 outer_loss += self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
 
-                # outer_loss = self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
-
-                # # TODO: roll back
-                # if metatrain:
-                #     self.manual_backward(outer_loss)
-
                 with torch.no_grad():
                     test_preds = torch.softmax(test_logits, dim=-1)
                     outer_accuracy.update(test_preds, episode_queries.local_y)

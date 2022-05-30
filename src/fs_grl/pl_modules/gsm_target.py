@@ -4,7 +4,7 @@ import torch
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 
-from fs_grl.data.datamodule import MetaData
+from fs_grl.data.datamodule.metadata import MetaData
 from fs_grl.data.episode import EpisodeBatch
 from fs_grl.gsm.modules import ClassifierLayer
 from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget

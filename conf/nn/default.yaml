@@ -5,7 +5,7 @@ defaults:
   - model: best_params/${nn/data}
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule #fs_grl.data.datamodule.GraphMetaDataModule
+  _target_: fs_grl.data.datamodule.meta_datamodule.GraphMetaDataModule
 
   dataset_name: ???
   feature_params:

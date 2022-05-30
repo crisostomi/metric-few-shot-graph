@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from fs_grl.data.datamodule import MetaData
+from fs_grl.data.datamodule.metadata import MetaData
 from fs_grl.pl_modules.pl_module import BaseModule
 
 

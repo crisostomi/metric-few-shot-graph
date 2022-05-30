@@ -62,7 +62,7 @@ def random_split_bucketed(sequence: List, split_ratio: float) -> Tuple[List, Lis
     return split_sequence_1, split_sequence_2
 
 
-def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Data]]:
+def get_label_to_samples_map(annotated_samples: List) -> Dict[int, List[Union[Data, nx.Graph]]]:
     """
     Given a list of annotated_samples, return a map { label: list of samples with that label}
     """

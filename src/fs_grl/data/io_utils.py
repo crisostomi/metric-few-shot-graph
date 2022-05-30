@@ -19,7 +19,7 @@ class Node:
         self.attrs = attrs
 
 
-def graph_list_to_data_list(graph_list, feature_params, add_aggregator_nodes, artificial_node_features):
+def graph_list_to_data_list(graph_list, feature_params, add_aggregator_nodes=False, artificial_node_features=None):
     """
     Loads a TU graph dataset.
 
@@ -99,7 +99,7 @@ def load_graph_list(dir_path, dataset_name):
     return graph_list
 
 
-def to_data_list(graph_list, feature_params, add_aggregator_nodes) -> List[Data]:
+def to_data_list(graph_list, feature_params, add_aggregator_nodes=False) -> List[Data]:
     """
     Converts a list of Networkx graphs to a list of PyG Data objects
 
@@ -369,7 +369,7 @@ def get_classes_to_label_dict(graph_list) -> Dict:
     return class_to_label_dict
 
 
-def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes, artificial_node_features):
+def load_pickle_data(data_dir, dataset_name, feature_params, add_aggregator_nodes=False, artificial_node_features=None):
 
     node_attrs = load_pickle(os.path.join(data_dir, dataset_name + "_node_attributes.pickle"))
     base_set = load_pickle(os.path.join(data_dir, dataset_name + "_base.pickle"))
@@ -573,3 +573,8 @@ def load_pickle(file_name):
 
 def load_query_support_idxs(path):
     raise NotImplementedError
+
+
+def map_classes_to_labels(graph_list: List[nx.Graph], class_to_label_dict: Dict[str, int]):
+    for graph in graph_list:
+        graph.graph["class"] = class_to_label_dict[graph.graph["class"]]
