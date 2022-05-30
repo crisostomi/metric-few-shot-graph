@@ -22,7 +22,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 10 # 50 for TL, 5 for DML
+    patience: 3 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}

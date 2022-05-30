@@ -26,15 +26,3 @@ class GNN_MLP(nn.Module):
         logits = self.classifier(embeddings)
 
         return logits
-
-    def init_adaptation(self):
-        """
-        Reset stats for new task
-        """
-        # TODO: check if this is correct
-        self.classifier.reset_parameters()
-
-        # Reset BN running stats
-        for m in self.modules():
-            if hasattr(m, "reset_running_stats"):
-                m.reset_running_stats()

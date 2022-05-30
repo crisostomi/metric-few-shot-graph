@@ -24,9 +24,9 @@ data:
   curriculum_learning: false
   max_difficult_step: 3000
 
-  num_train_episodes: 2000
+  num_train_episodes: 500
   num_val_episodes: 500
-  num_test_episodes: 5000
+  num_test_episodes: 1000
   support_ratio: 0.8
 
   separated_query_support: false

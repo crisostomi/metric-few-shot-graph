@@ -14,14 +14,21 @@ class MetaLearningModel(BaseModule):
         self.automatic_optimization = False
 
     def forward(self, **kwargs) -> Dict[str, torch.Tensor]:
-        """ """
         raise NotImplementedError
 
-    def step(self, train: bool, batch: Any):
+    def step(self, metatrain: bool, batch: Any):
         raise NotImplementedError
 
     def training_step(self, batch: Any, batch_idx: int):
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=True, batch=batch)
+        """
+        A meta-training step
+
+        :param batch:
+        :param batch_idx:
+        :return:
+        """
+
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(batch=batch, metatrain=True)
 
         self.log_dict(
             {"metatrain/inner_loss": inner_loss.item(), "metatrain/inner_accuracy": inner_acc.compute()},
@@ -37,9 +44,20 @@ class MetaLearningModel(BaseModule):
         )
 
     def validation_step(self, batch: Any, batch_idx: int):
+        """
+        A meta-validation step
+
+        :param batch:
+        :param batch_idx:
+        :return:
+        """
+
+        # force training
         torch.set_grad_enabled(True)
         self.gnn_mlp.train()
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=False, batch=batch)
+
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(batch=batch, metatrain=False)
+
         self.log_dict(
             {"metaval/inner_loss": inner_loss.item(), "metaval/inner_accuracy": inner_acc.compute()}, prog_bar=False
         )
@@ -48,9 +66,20 @@ class MetaLearningModel(BaseModule):
         )
 
     def test_step(self, batch: Any, batch_idx: int):
+        """
+        A meta-testing step
+
+        :param batch:
+        :param batch_idx:
+        :return:
+        """
+
+        # force training
         torch.set_grad_enabled(True)
         self.gnn_mlp.train()
-        outer_loss, inner_loss, outer_acc, inner_acc = self.step(train=False, batch=batch)
+
+        outer_loss, inner_loss, outer_acc, inner_acc = self.step(batch=batch, metatrain=False)
+
         self.log_dict(
             {
                 "metatest/outer_loss": outer_loss.item(),
@@ -58,4 +87,5 @@ class MetaLearningModel(BaseModule):
                 "metatest/inner_accuracy": inner_acc.compute(),
                 "metatest/outer_accuracy": outer_acc.compute(),
             },
+            on_step=True,
         )

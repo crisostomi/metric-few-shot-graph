@@ -26,7 +26,7 @@ class MAMLModel(MetaLearningModel):
             cfg.model,
             cfg=cfg.model,
             feature_dim=metadata.feature_dim,
-            num_classes=self.metadata.num_classes,
+            num_classes=self.metadata.num_classes_per_episode,
             _recursive_=False,
         )
 
@@ -40,9 +40,10 @@ class MAMLModel(MetaLearningModel):
 
         raise NotImplementedError
 
-    def step(self, train: bool, batch: EpisodeBatch):
+    def step(self, metatrain: bool, batch: EpisodeBatch):
 
         self.gnn_mlp.zero_grad()
+
         outer_optimizer = self.optimizers()
 
         outer_loss = torch.tensor(0.0)
@@ -52,38 +53,46 @@ class MAMLModel(MetaLearningModel):
         outer_accuracy = metric.clone()
         inner_accuracy = metric.clone()
 
-        supports_by_episode = batch.split_episode_to_graph("supports")
-        queries_by_episode = batch.split_episode_to_graph("queries")
+        supports_by_episode = batch.split_in_episodes("supports")
+        queries_by_episode = batch.split_in_episodes("queries")
 
         for episode_idx, (episode_supports, episode_queries) in enumerate(zip(supports_by_episode, queries_by_episode)):
-            track_higher_grads = True if train else False
 
             episode_supports = Batch.from_data_list(episode_supports)
             episode_queries = Batch.from_data_list(episode_queries)
 
+            track_higher_grads = True if metatrain else False
+
+            # TODO: understand what copy_initial_weights does
             with higher.innerloop_ctx(
                 self.gnn_mlp, self.inner_optimizer, copy_initial_weights=False, track_higher_grads=track_higher_grads
             ) as (fmodel, diffopt):
 
                 for k in range(self.num_inner_steps):
-                    train_logit = fmodel(episode_supports)
-                    loss = self.inner_loss_func(train_logit, episode_supports.y)
+                    train_logits = fmodel(episode_supports)
+                    loss = self.inner_loss_func(train_logits, episode_supports.local_y)
                     diffopt.step(loss)
 
-                # TODO: understand why this additional iteration with no grad
                 with torch.no_grad():
-                    train_logit = fmodel(episode_supports)
-                    train_preds = torch.softmax(train_logit, dim=-1)
-                    inner_loss += self.inner_loss_func(train_logit, episode_supports.y).cpu()
-                    inner_accuracy.update(train_preds, episode_supports.y)
+                    train_logits = fmodel(episode_supports)
+                    train_preds = torch.softmax(train_logits, dim=-1)
+                    inner_loss += self.inner_loss_func(train_logits, episode_supports.local_y).cpu()
+                    inner_accuracy.update(train_preds, episode_supports.local_y)
 
-                test_logit = fmodel(episode_queries)
-                outer_loss += self.outer_loss_func(test_logit, episode_queries.y).cpu()
+                test_logits = fmodel(episode_queries)
+                outer_loss += self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
+
+                # outer_loss = self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
+
+                # # TODO: roll back
+                # if metatrain:
+                #     self.manual_backward(outer_loss)
+
                 with torch.no_grad():
-                    test_preds = torch.softmax(test_logit, dim=-1)
-                    outer_accuracy.update(test_preds, episode_queries.y)
+                    test_preds = torch.softmax(test_logits, dim=-1)
+                    outer_accuracy.update(test_preds, episode_queries.local_y)
 
-        if train:
+        if metatrain:
             self.manual_backward(outer_loss)
             outer_optimizer.step()
 

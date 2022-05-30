@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 _target_: fs_grl.pl_modules.maml.MAMLModel
-num_inner_steps: 2
+num_inner_steps: 5
 
 outer_optimizer:
   _target_: torch.optim.Adam

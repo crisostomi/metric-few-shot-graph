@@ -52,8 +52,11 @@ class Episode:
         support_global_labels = torch.stack([support.y for support in supports])
         query_global_labels = torch.stack([query.y for query in queries])
 
-        self.support_local_labels = torch.unique(support_global_labels, return_inverse=True)[1]
-        self.query_local_labels = torch.unique(query_global_labels, return_inverse=True)[1]
+        support_local_labels = torch.unique(support_global_labels, return_inverse=True)[1]
+        query_local_labels = torch.unique(query_global_labels, return_inverse=True)[1]
+
+        Episode.add_local_labels(supports, support_local_labels)
+        Episode.add_local_labels(queries, query_local_labels)
 
         self.supports = supports
         self.queries = queries
@@ -67,6 +70,12 @@ class Episode:
         self.num_supports_per_episode = (
             self.episode_hparams.num_supports_per_class * self.episode_hparams.num_classes_per_episode
         )
+
+    @staticmethod
+    def add_local_labels(samples, local_labels):
+
+        for ind, sample in enumerate(samples):
+            sample.local_y = local_labels[ind]
 
 
 class EpisodeBatch:
@@ -105,7 +114,7 @@ class EpisodeBatch:
         )
         self.num_samples_per_episode = {
             "queries": self.num_queries_per_episode,
-            "supports": self.num_queries_per_episode,
+            "supports": self.num_supports_per_episode,
         }
         self.samples = {"queries": self.queries, "supports": self.supports}
 
@@ -142,12 +151,6 @@ class EpisodeBatch:
         supports_batch: Batch = Batch.from_data_list(supports)
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
-
-        support_local_labels = torch.cat([episode.support_local_labels for episode in episode_list], dim=0)
-        query_local_labels = torch.cat([episode.query_local_labels for episode in episode_list], dim=0)
-
-        supports_batch.support_local_labels = support_local_labels
-        queries_batch.query_local_labels = query_local_labels
 
         if add_prototype_nodes:
             cls.update_supports_batch_with_prototype_edges(
@@ -503,15 +506,27 @@ class EpisodeBatch:
 
         return self
 
-    def split_episode_to_graph(self, sample_type: str):
+    def split_in_episodes(self, sample_type: str):
+        """
+        Splits the EpisodeBatch into episodes
+
+        EpisodeBatch contains BxNxK support graphs and BxNxQ query graphs
+
+        Returns B lists of (NxK) graphs each if sample_type is "supports"
+            or  B lists of (NxQ) graphs each if sample_type is "queries"
+        """
         assert sample_type == "queries" or sample_type == "supports"
 
         samples_batch = self.samples[sample_type]
+
+        # list containing (BxNxK) supports or (BxNxQ) queries
         samples_list = Batch.to_data_list(samples_batch)
 
+        # how many supports or queries for episode
         num_samples_ep = self.num_samples_per_episode[sample_type]
+
         samples_by_episode = [
             samples_list[i * num_samples_ep : i * num_samples_ep + num_samples_ep] for i in range(self.num_episodes)
         ]
 
-        return [sample_batch for sample_batch in samples_by_episode if len(sample_batch) > 0]
+        return samples_by_episode
