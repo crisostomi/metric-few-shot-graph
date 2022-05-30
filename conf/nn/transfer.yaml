@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - data: triangles
+  - data: gsm
   - model: transfer_learning
 
 data:

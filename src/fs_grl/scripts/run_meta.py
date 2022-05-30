@@ -66,6 +66,9 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("Starting meta-training!")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
 
+    hydra.utils.log.info("Starting testing!")
+    trainer.test(model=model, datamodule=datamodule)
+
     # Mandatory for multi-run
     if logger is not None:
         logger.experiment.finish()

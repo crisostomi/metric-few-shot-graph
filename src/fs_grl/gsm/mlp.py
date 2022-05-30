@@ -47,3 +47,11 @@ class MLP(nn.Module):
             for layer in range(self.num_layers - 1):
                 h = F.relu(self.batch_norms[layer](self.linears[layer](h)))
             return self.linears[self.num_layers - 1](h)
+
+    def reset_parameters(self):
+        """
+
+        :return:
+        """
+        for linear in self.linears:
+            linear.reset_parameters()

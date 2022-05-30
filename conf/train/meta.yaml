@@ -12,24 +12,17 @@ trainer:
   log_every_n_steps: 1
   deterministic: ${train.deterministic}
 
-meta-testing-trainer:
-  gpus: ${train.trainer.gpus}
-  precision: ${train.trainer.precision}
-  max_epochs: 1
-  deterministic: ${train.deterministic}
-  log_every_n_steps: 1
-
 restore:
   ckpt_or_run_path: null
   mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'loss/val/classification_loss_epoch'
-  mode: 'min'
+  metric: 'metaval/outer_accuracy'
+  mode: 'max'
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 50 # 50 for TL, 5 for DML
+    patience: 10 # 50 for TL, 5 for DML
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}

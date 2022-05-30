@@ -3,7 +3,6 @@ from typing import Any, Sequence, Tuple, Union
 import higher
 import hydra
 import torch
-import torch.nn.functional as F
 from hydra.utils import instantiate
 from torch import nn
 from torch.optim import Optimizer
@@ -16,10 +15,12 @@ from fs_grl.pl_modules.meta_learning import MetaLearningModel
 
 
 class MAMLModel(MetaLearningModel):
-    def __init__(self, cfg, metadata, *args, **kwargs) -> None:
+    def __init__(self, cfg, metadata, num_inner_steps, *args, **kwargs) -> None:
         super().__init__(metadata=metadata, *args, **kwargs)
         self.save_hyperparameters(logger=False, ignore=("metadata",))
         self.cfg = cfg
+
+        self.num_inner_steps = num_inner_steps
 
         self.gnn_mlp: GNN_MLP = instantiate(
             cfg.model,
@@ -30,25 +31,14 @@ class MAMLModel(MetaLearningModel):
         )
 
         self.inner_optimizer = instantiate(cfg.inner_optimizer, params=self.gnn_mlp.parameters())
+
         self.inner_loss_func = nn.CrossEntropyLoss()
         self.outer_loss_func = nn.CrossEntropyLoss()
 
-        # self.train_inner_accuracy = metric.clone()
-        # self.train_outer_accuracy = metric.clone()
-        # self.val_inner_accuracy = metric.clone()
-        # self.val_outer_accuracy = metric.clone()
-        # self.test_inner_accuracy = metric.clone()
-        # self.test_outer_accuracy = metric.clone()
-
     def forward(self, batch: EpisodeBatch) -> torch.Tensor:
-        """
-        :return similarities, tensor ~ (B*(N*Q)*N) containing for each episode the similarity
-                between each of the N*Q queries and the N label prototypes
-        """
+        """ """
 
-        # model_out = self.model(batch)
-        print("WTF")
-        # return model_out
+        raise NotImplementedError
 
     def step(self, train: bool, batch: EpisodeBatch):
 
@@ -75,13 +65,12 @@ class MAMLModel(MetaLearningModel):
                 self.gnn_mlp, self.inner_optimizer, copy_initial_weights=False, track_higher_grads=track_higher_grads
             ) as (fmodel, diffopt):
 
-                # TODO: wire num inner steps
-                num_inner_steps = 5
-                for k in range(num_inner_steps):
+                for k in range(self.num_inner_steps):
                     train_logit = fmodel(episode_supports)
-                    loss = F.cross_entropy(train_logit, episode_supports.y)
+                    loss = self.inner_loss_func(train_logit, episode_supports.y)
                     diffopt.step(loss)
 
+                # TODO: understand why this additional iteration with no grad
                 with torch.no_grad():
                     train_logit = fmodel(episode_supports)
                     train_preds = torch.softmax(train_logit, dim=-1)
