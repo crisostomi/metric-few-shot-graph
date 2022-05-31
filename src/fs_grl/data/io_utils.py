@@ -26,7 +26,7 @@ def graph_list_to_data_list(graph_list, feature_params, add_aggregator_nodes=Fal
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
     :param feature_params: params regarding data features
-    :return:
+    :return
     """
 
     if "pos_enc" in feature_params["features_to_consider"]:
@@ -81,7 +81,7 @@ def load_graph_list(dir_path, dataset_name):
     :param dir_path: path to the directory containing the dataset
     :param dataset_name: name of the dataset
 
-    :return: graph_list: list of networkx graphs
+    :return graph_list: list of networkx graphs
     """
     dataset_path = f"{os.path.join(dir_path, dataset_name)}.txt"
 
@@ -106,7 +106,7 @@ def to_data_list(graph_list, feature_params, add_aggregator_nodes=False) -> List
     :param graph_list: list of Networkx graphs
     :param class_to_label_dict: mapping original class to integer label
 
-    :return:
+    :return
     """
     data_list = []
 
@@ -141,7 +141,7 @@ def parse_graph(file_descriptor):
 
     :param file_descriptor: file formatted accordingly to TU datasets
 
-    :return: networkx graph
+    :return networkx graph
     """
 
     graph_header = file_descriptor.readline().strip().split()
@@ -171,7 +171,7 @@ def parse_node(file_descriptor):
         tag num_neighbors nghbr_1 nghbr_2 ... attr_1 attr_2 ...
 
     :param file_descriptor: file formatted accordingly to TU datasets
-    :return: Node with tag, neighbors list and possibly attributes
+    :return Node with tag, neighbors list and possibly attributes
     """
 
     node_row = file_descriptor.readline().strip().split()
@@ -195,7 +195,7 @@ def get_degree_tensor_from_nx(G: nx.Graph) -> Tensor:
     Returns node degrees as a tensor
     :param G: networkx graph
 
-    :return: tensor ~ (num_nodes) with tensor[i] = degree of node i
+    :return tensor ~ (num_nodes) with tensor[i] = degree of node i
     """
     degree_list = sorted(list(G.degree), key=lambda x: x[0])
 
@@ -207,7 +207,7 @@ def get_tag_tensor_from_nx(G: nx.Graph) -> Tensor:
     Returns node tags as a tensor
     :param G: networkx graph
 
-    :return: tensor ~ (num_nodes) with tensor[i] = tag of node i
+    :return tensor ~ (num_nodes) with tensor[i] = tag of node i
     """
 
     tag_dict = nx.get_node_attributes(G, "tag")
@@ -311,7 +311,7 @@ def get_one_hot_attrs(attrs, data_list):
 
     :param attrs:
     :param data_list:
-    :return:
+    :return
     """
     # unique_attrs contains the unique values found in attrs,
     # corrs contains the indices of the unique array that reconstruct the input array
@@ -336,7 +336,7 @@ def get_edge_index_from_nx(G: nx.Graph, add_aggregator_nodes=False) -> Tensor:
     """
     Extracts edge index from networkx graph
     :param G: networkx graph
-    :return: tensor ~ (2, num_edges) containing all the edges in the graph G
+    :return tensor ~ (2, num_edges) containing all the edges in the graph G
     """
     # shape (num_edges*2, 2)
     edges_tensor = torch.tensor(list([(edge[0], edge[1]) for edge in G.edges]), dtype=torch.long)
@@ -359,7 +359,7 @@ def get_classes_to_label_dict(graph_list) -> Dict:
 
     :param graph_list: list of networkx graphs
 
-    :return: map that maps each string class to an integer
+    :return map that maps each string class to an integer
     """
 
     all_classes = {graph.graph["class"] for graph in graph_list}
@@ -569,10 +569,6 @@ def load_pickle(file_name):
     with open(file_name, "rb") as f:
         data = pickle.load(f)
         return data
-
-
-def load_query_support_idxs(path):
-    raise NotImplementedError
 
 
 def map_classes_to_labels(graph_list: List[nx.Graph], class_to_label_dict: Dict[str, int]):

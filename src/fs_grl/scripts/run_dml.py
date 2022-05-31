@@ -17,7 +17,7 @@ from nn_core.serialization import NNCheckpointIO
 
 import fs_grl  # noqa
 from fs_grl.callbacks import build_callbacks
-from fs_grl.data.datamodule import GraphFewShotDataModule
+from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
 from fs_grl.utils import handle_fast_dev_run
 
 # Force the execution of __init__.py if this file is executed directly.
@@ -94,7 +94,7 @@ def run(cfg: DictConfig) -> str:
         cfg.nn.model, _recursive_=False, train_data_list_by_label=datamodule.data_list_by_base_label, metadata=metadata
     )
 
-    callbacks: List[Callback] = build_callbacks(cfg.train["distance-metric-learning-callbacks"], template_core)
+    callbacks: List[Callback] = build_callbacks(cfg.train["callbacks"], template_core)
 
     pylogger.info("Instantiating the <Trainer>")
     trainer = pl.Trainer(

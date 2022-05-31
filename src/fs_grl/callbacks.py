@@ -13,7 +13,7 @@ from sklearn.manifold import TSNE
 from torch_geometric.loader import DataLoader
 
 from fs_grl.data.utils import get_label_to_samples_map
-from fs_grl.modules.node_embedder import NodeEmbedder
+from fs_grl.modules.components.node_embedder import NodeEmbedder
 
 pylogger = logging.getLogger(__name__)
 

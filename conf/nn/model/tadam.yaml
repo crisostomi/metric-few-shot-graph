@@ -10,7 +10,7 @@ optimizer:
 
 
 model:
-  _target_: fs_grl.modules.baselines.tadam.TADAM
+  _target_: fs_grl.modules.architectures.tadam.TADAM
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
@@ -23,15 +23,15 @@ model:
     intraclass_var_reg: 0.0
     film_reg: 0.1
 
-  num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
+  num_classes_per_episode: ${nn.data.episode_hparams.train.num_classes_per_episode}
 
   embedder:
-    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    _target_: fs_grl.modules.components.graph_embedder.GraphEmbedder
     pooling: ${nn.model.pooling}
     feature_dim: ???
 
     node_embedder:
-      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      _target_: fs_grl.modules.components.node_embedder.NodeEmbedder
       feature_dim: ???
       embedding_dim: 64
       hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}

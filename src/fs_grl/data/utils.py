@@ -1,4 +1,5 @@
 import math
+from enum import Enum
 from random import shuffle
 from typing import Dict, Iterable, List, Tuple, Union
 
@@ -6,6 +7,28 @@ import networkx as nx
 import numpy as np
 import torch
 from torch_geometric.data import Data
+
+
+class DotDict(dict):
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError as k:
+            raise AttributeError(k)
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __delattr__(self, key):
+        try:
+            del self[key]
+        except KeyError as k:
+            raise AttributeError(k)
+
+
+class SampleType(Enum):
+    SUPPORT = "supports"
+    QUERY = "queries"
 
 
 def flatten(iterable: Iterable) -> List:
@@ -19,7 +42,7 @@ def random_split_sequence(sequence: List, split_ratio: float) -> Tuple[List, Lis
     and the second having {1-split_ratio}%.
     :param sequence: sequence to be split.
     :param split_ratio: percentage of the elements falling in the first sequence.
-    :return: subseq_1, subseq_2
+    :return subseq_1, subseq_2
     """
 
     idxs = np.arange(len(sequence))
@@ -40,7 +63,7 @@ def random_split_bucketed(sequence: List, split_ratio: float) -> Tuple[List, Lis
     Splits a sequence so to have the same distribution in each bucket
     :param sequence:
     :param split_ratio:
-    :return:
+    :return
     """
 
     sequence_bucketed = get_label_to_samples_map(sequence)

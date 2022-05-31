@@ -9,11 +9,11 @@ optimizer:
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.baselines.prototypical_network.PrototypicalNetwork
+  _target_: fs_grl.modules.architectures.prototypical_network.PrototypicalNetwork
   feature_dim: ???
   num_classes: ???
   margin: 0.5
-  num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
+  num_classes_per_episode: ${nn.data.episode_hparams.train.num_classes_per_episode}
   metric_scaling_factor: 7.5
 
   loss_weights:
@@ -22,12 +22,12 @@ model:
     intraclass_var_reg: 0.0
 
   embedder:
-    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    _target_: fs_grl.modules.components.graph_embedder.GraphEmbedder
     pooling: ${nn.model.pooling}
     feature_dim: ???
 
     node_embedder:
-      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      _target_: fs_grl.modules.components.node_embedder.NodeEmbedder
       feature_dim: ???
       embedding_dim: 64
       hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}

@@ -1,19 +1,19 @@
 dataset_name: DUMMY
 
 train_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
+  _target_: fs_grl.data.episode.episode.EpisodeHParams
   num_queries_per_class: 2
   num_classes_per_episode: 2
   num_supports_per_class: 3
 
 val_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
+  _target_: fs_grl.data.episode.episode.EpisodeHParams
   num_queries_per_class: 2
   num_classes_per_episode: 2
   num_supports_per_class: 3
 
 test_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
+  _target_: fs_grl.data.episode.episode.EpisodeHParams
   num_queries_per_class: 2
   num_classes_per_episode: 2
   num_supports_per_class: 3

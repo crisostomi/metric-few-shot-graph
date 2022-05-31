@@ -5,32 +5,25 @@ defaults:
   - model: maml
 
 data:
-  _target_: fs_grl.data.datamodule.meta_datamodule.GraphMetaDataModule
+  _target_: fs_grl.data.datamodule.episodic_datamodule.GraphEpisodicDataModule
 
   dataset_name: ???
   feature_params:
     features_to_consider:
       - degree
       - tags
-#      - num_cycles
-#      - pos_enc
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
 
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
-  best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
-  curriculum_learning: false
-  max_difficult_step: 3000
 
-  num_train_episodes: 500
-  num_val_episodes: 500
-  num_test_episodes: 1000
-  support_ratio: 0.8
+  num_episodes_per_epoch:
+    train: 500
+    val: 500
+    test: 1000
 
-  separated_query_support: false
-  query_support_split_path: null
   train_ratio: 0.80
 
   gpus: ${train.trainer.gpus}

@@ -1,22 +1,23 @@
 dataset_name: Reddit
 
-train_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
-  num_queries_per_class: 15
-  num_classes_per_episode: 4
-  num_supports_per_class: 10
+episode_hparams:
+  train:
+    _target_: fs_grl.data.episode.episode.EpisodeHParams
+    num_queries_per_class: 15
+    num_classes_per_episode: 4
+    num_supports_per_class: 10
 
-val_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
-  num_queries_per_class: 5
-  num_classes_per_episode: 4
-  num_supports_per_class: 10
+  val:
+    _target_: fs_grl.data.episode.episode.EpisodeHParams
+    num_queries_per_class: 5
+    num_classes_per_episode: 4
+    num_supports_per_class: 10
 
-test_episode_hparams:
-  _target_: fs_grl.data.episode.EpisodeHParams
-  num_queries_per_class: 15
-  num_classes_per_episode: 4
-  num_supports_per_class: 10
+  test:
+    _target_: fs_grl.data.episode.episode.EpisodeHParams
+    num_queries_per_class: 15
+    num_classes_per_episode: 4
+    num_supports_per_class: 10
 
 #batch_size:
 #  train: 8

@@ -8,13 +8,13 @@ optimizer:
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.baselines.fully_graphical_module.FullyGraphicalModule
+  _target_: fs_grl.modules.architectures.fully_graphical_module.FullyGraphicalModule
   feature_dim: ???
   num_classes: ???
   margin: 0.5
 
   embedder:
-    _target_: fs_grl.modules.node_embedder.NodeEmbedder
+    _target_: fs_grl.modules.components.node_embedder.NodeEmbedder
     feature_dim: ???
     hidden_dim: 64
     embedding_dim: 64

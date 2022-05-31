@@ -10,12 +10,12 @@ source:
     lr: 1e-4
 
   embedder:
-    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    _target_: fs_grl.modules.components.graph_embedder.GraphEmbedder
     pooling: ${nn.model.pooling}
     feature_dim: ???
 
     node_embedder:
-      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      _target_: fs_grl.modules.components.node_embedder.NodeEmbedder
       feature_dim: ???
       embedding_dim: 64
       hidden_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
@@ -32,7 +32,7 @@ source:
         _target_: torch.nn.ReLU
 
   classifier:
-    _target_: fs_grl.modules.mlp.MLP
+    _target_: fs_grl.modules.components.mlp.MLP
     num_layers: 2
     input_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
     output_dim: ??
@@ -46,7 +46,7 @@ target:
   embedder: ???
 
   classifier:
-    _target_: fs_grl.modules.mlp.MLP
+    _target_: fs_grl.modules.components.mlp.MLP
     num_layers: 2
     input_dim: ${nn.model.source.embedder.node_embedder.embedding_dim}
     output_dim: ??

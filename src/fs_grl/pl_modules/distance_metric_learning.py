@@ -6,9 +6,9 @@ from hydra.utils import instantiate
 
 from nn_core.model_logging import NNLogger
 
-from fs_grl.data.datamodule import MetaData
-from fs_grl.data.episode import EpisodeBatch
-from fs_grl.pl_modules.pl_module import BaseModule
+from fs_grl.data.datamodule.metadata import MetaData
+from fs_grl.data.episode.episode_batch import EpisodeBatch
+from fs_grl.pl_modules.base_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 

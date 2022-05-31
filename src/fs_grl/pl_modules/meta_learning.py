@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 import torch
 
 from fs_grl.data.datamodule.metadata import MetaData
-from fs_grl.pl_modules.pl_module import BaseModule
+from fs_grl.pl_modules.base_module import BaseModule
 
 
 class MetaLearningModel(BaseModule):
@@ -25,7 +25,7 @@ class MetaLearningModel(BaseModule):
 
         :param batch:
         :param batch_idx:
-        :return:
+        :return
         """
 
         outer_loss, inner_loss, outer_acc, inner_acc = self.step(batch=batch, metatrain=True)
@@ -49,7 +49,7 @@ class MetaLearningModel(BaseModule):
 
         :param batch:
         :param batch_idx:
-        :return:
+        :return
         """
 
         # force training
@@ -71,7 +71,7 @@ class MetaLearningModel(BaseModule):
 
         :param batch:
         :param batch_idx:
-        :return:
+        :return
         """
 
         # force training

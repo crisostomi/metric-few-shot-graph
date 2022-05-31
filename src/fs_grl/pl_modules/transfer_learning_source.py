@@ -2,16 +2,17 @@ import logging
 from typing import Any, Mapping, Optional
 
 import torch
+from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 
 from nn_core.model_logging import NNLogger
 
-from fs_grl.data.datamodule import MetaData
-from fs_grl.pl_modules.transfer_learning import TransferLearningBaseline
+from fs_grl.data.datamodule.metadata import MetaData
+from fs_grl.pl_modules.base_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningSource(TransferLearningBaseline):
+class TransferLearningSource(BaseModule):
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
@@ -69,3 +70,6 @@ class TransferLearningSource(TransferLearningBaseline):
                 self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
 
         return step_out
+
+    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        self.log_metrics(split="val", on_step=False, on_epoch=True, cm_reset=True)

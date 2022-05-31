@@ -10,8 +10,8 @@ from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
-from fs_grl.data.datamodule import MetaData
-from fs_grl.data.episode import EpisodeBatch
+from fs_grl.data.datamodule.metadata import MetaData
+from fs_grl.data.episode.episode_batch import EpisodeBatch
 from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget
 
 pylogger = logging.getLogger(__name__)

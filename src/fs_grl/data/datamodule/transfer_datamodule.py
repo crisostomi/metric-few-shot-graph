@@ -6,9 +6,11 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch_geometric.data import Batch, Data
 
+from fs_grl.data.dataloader import EpisodicDataLoader
 from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
-from fs_grl.data.dataset import EpisodicDataLoader, MapEpisodicDataset, VanillaGraphDataset
-from fs_grl.data.episode import EpisodeHParams
+from fs_grl.data.dataset.episodic import MapEpisodicDataset
+from fs_grl.data.dataset.vanilla import VanillaGraphDataset
+from fs_grl.data.episode.episode import EpisodeHParams
 from fs_grl.data.utils import random_split_sequence
 
 pylogger = logging.getLogger(__name__)
@@ -17,37 +19,51 @@ pylogger = logging.getLogger(__name__)
 class GraphTransferDataModule(GraphFewShotDataModule):
     def __init__(
         self,
-        dataset_name,
+        dataset_name: str,
+        data_dir: str,
         feature_params: Dict,
-        data_dir,
         classes_split_path: Optional[str],
-        query_support_split_path,
-        separated_query_support: bool,
-        support_ratio,
         test_episode_hparams: EpisodeHParams,
-        num_test_episodes,
-        train_ratio,
-        num_workers: DictConfig,
+        num_test_episodes: int,
+        train_ratio: float,
         batch_size: DictConfig,
+        num_workers: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
         **kwargs,
     ):
+        """
+        Datamodule for Transfer Learning approaches. Training and validation are vanilla, i.e. non-episodic,
+        and test is episodic.
+
+        :param dataset_name:
+        :param feature_params: what feature params to consider
+        :param data_dir: path to the folder containing the dataset
+
+        :param classes_split_path: path containing the split between base and novel classes
+
+        :param train_ratio: percentage of base samples that go into training
+
+        :param test_episode_hparams: number N of classes per episode, number K of supports per class and
+                                number Q of queries per class
+        :param num_test_episodes: how many episodes for testing
+
+        :param batch_size:
+        :param num_workers:
+        :param gpus:
+
+        :param kwargs:
+        """
         super().__init__(
             dataset_name=dataset_name,
-            feature_params=feature_params,
             data_dir=data_dir,
+            feature_params=feature_params,
             classes_split_path=classes_split_path,
-            query_support_split_path=query_support_split_path,
-            separated_query_support=separated_query_support,
-            support_ratio=support_ratio,
             train_ratio=train_ratio,
             num_test_episodes=num_test_episodes,
             test_episode_hparams=test_episode_hparams,
-            num_workers=num_workers,
             batch_size=batch_size,
+            num_workers=num_workers,
             gpus=gpus,
-            add_artificial_nodes=False,
-            artificial_node_features=None,
         )
 
     def setup(self, stage: Optional[str] = None):
@@ -57,9 +73,11 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             split_samples = self.split_base_novel_samples()
             base_samples, novel_samples = split_samples["base"], split_samples["novel"]
 
-            base_samples, base_global_to_local_labels = self.convert_to_local_labels(base_samples, "base")
-            pylogger.info(f"Base global to local labels: {base_global_to_local_labels}")
+            base_samples, base_global_to_stage_labels = self.convert_to_stage_labels(base_samples, "base")
+            pylogger.info(f"Base global to local labels: {base_global_to_stage_labels}")
 
+            # TODO: currently taking a subset of the training dataset as validation set and ignoring the validation set
+            # for the datasets for which it is available
             base_train_samples, base_val_samples = self.split_train_val(base_samples)
 
             self.train_dataset = VanillaGraphDataset(
@@ -72,30 +90,32 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 )
             ]
 
-            novel_samples, novel_global_to_local_labels = self.convert_to_local_labels(novel_samples, "novel")
-            pylogger.info(f"Novel global to local labels: {novel_global_to_local_labels}")
+            novel_samples, novel_global_to_stage_labels = self.convert_to_stage_labels(novel_samples, "novel")
+            pylogger.info(f"Novel global to local labels: {novel_global_to_stage_labels}")
 
-            local_novel_labels = [ind for ind, label in enumerate(sorted(self.novel_labels))]
+            stage_novel_labels = [ind for ind, label in enumerate(sorted(self.novel_labels))]
 
             self.test_datasets = [
                 MapEpisodicDataset(
                     samples=novel_samples,
                     num_episodes=self.num_test_episodes,
-                    stage_labels=local_novel_labels,
-                    class_to_label_dict=self.class_to_label_dict,
+                    stage_labels=stage_novel_labels,
                     episode_hparams=self.test_episode_hparams,
-                    separated_query_support=False,
                 )
             ]
 
-    def convert_to_local_labels(self, samples: List[Data], base_or_novel: str) -> Tuple[List[Data], Dict]:
+    def convert_to_stage_labels(self, samples: List[Data], base_or_novel: str) -> Tuple[List[Data], Dict]:
         """
         Given a list of samples, reassign their labels to be ordered from 0 to num_labels -1
         e.g. [2, 5, 10] --> [0, 1, 2]
+
         :param samples:
         :param base_or_novel: whether labels are base or novel ones
-        :return: samples with local labels and mapping
+
+        :return samples with local labels and mapping
         """
+        assert base_or_novel == "base" or base_or_novel == "novel"
+
         stage_labels = self.labels_split[base_or_novel]
 
         global_to_local_labels = {label: ind for ind, label in enumerate(sorted(stage_labels))}
@@ -108,7 +128,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
     def split_train_val(self, data_list: List[Data]) -> Tuple[List[Data], List[Data]]:
         f"""
         Splits samples into training and validation according to {self.train_ratio}
-        :return:
+        :return
         """
 
         train_samples, val_samples = random_split_sequence(sequence=data_list, split_ratio=self.train_ratio)
@@ -151,7 +171,7 @@ class GraphTransferDataModule(GraphFewShotDataModule):
                 dataset=dataset,
                 episode_hparams=self.test_episode_hparams,
                 shuffle=False,
-                batch_size=1,
+                batch_size=self.batch_size.test,
                 num_workers=self.num_workers.test,
                 pin_memory=self.pin_memory,
             )

@@ -4,32 +4,25 @@ defaults:
   - model: transfer_learning
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule #fs_grl.data.datamodule.GraphMetaDataModule
+  _target_: fs_grl.data.datamodule.GraphTransferDataModule
 
   dataset_name: ???
   feature_params:
-    features_to_consider:
+    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
       - degree
       - tags
-#      - num_cycles
-#      - pos_enc
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
 
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
-  best_model_path: ${nn.data.data_dir}/best_model.ckpt.zip
-  num_clusters:
-    train: 3
 
-  num_train_episodes: 2000
-  num_val_episodes: 500
-  num_test_episodes: 5000
-  support_ratio: 0.8
+  num_episodes_per_epoch:
+    train: 2000
+    val: 500
+    test: 1000
 
-  separated_query_support: false
-  query_support_split_path: null
   train_ratio: 0.80
 
   gpus: ${train.trainer.gpus}
@@ -42,4 +35,4 @@ data:
   batch_size:
     train: 32
     val: 32
-    test: 32
+    test: 1

@@ -7,21 +7,21 @@ from typing import Dict, List, Optional, Sequence, Union
 
 import networkx as nx
 import pytorch_lightning as pl
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch.utils.data import Dataset
 from torch_geometric.data import Data
 
 from fs_grl.data.datamodule.metadata import MetaData
-from fs_grl.data.episode import EpisodeHParams
+from fs_grl.data.episode.episode import EpisodeHParams
 from fs_grl.data.io_utils import (
     data_list_to_graph_list,
     get_classes_to_label_dict,
     graph_list_to_data_list,
     load_graph_list,
     load_pickle_data,
+    map_classes_to_labels,
 )
-from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed, random_split_sequence
+from fs_grl.data.utils import flatten, get_label_to_samples_map, random_split_bucketed
 
 pylogger = logging.getLogger(__name__)
 
@@ -33,18 +33,17 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         data_dir,
         feature_params: Dict,
         classes_split_path: Optional[str],
-        separated_query_support: bool,
-        support_ratio,
         train_ratio,
         test_episode_hparams: EpisodeHParams,
         num_test_episodes,
-        num_workers: DictConfig,
         batch_size: DictConfig,
+        num_workers: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
         **kwargs,
     ):
         """
-        Abstract datamodule for few-shot graph classification.
+        Abstract datamodule for few-shot graph classification. Only accounts for episodes at testing time,
+        as it is the case for example for transfer learning.
 
         :param dataset_name:
         :param feature_params: what feature params to consider
@@ -52,16 +51,15 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
 
         :param classes_split_path: path containing the split between base and novel classes
 
-        :param separated_query_support: whether to sample queries and supports from disjoint sets
-        :param support_ratio: percentage of samples used as support, meaningful only
-                            when support and queries are split
+        :param train_ratio: percentage of base samples that go into training
 
         :param test_episode_hparams: number N of classes per episode, number K of supports per class and
                                 number Q of queries per class
         :param num_test_episodes: how many episodes for testing
 
-        :param num_workers:
+
         :param batch_size:
+        :param num_workers:
         :param gpus:
 
         :param kwargs:
@@ -70,17 +68,16 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
 
         self.classes_split_path = classes_split_path
 
-        self.test_episode_hparams = instantiate(test_episode_hparams)
+        self.test_episode_hparams = test_episode_hparams
         self.num_test_episodes = num_test_episodes
-
-        self.separated_query_support = separated_query_support
-        self.support_ratio = support_ratio
 
         self.train_ratio = train_ratio
 
         self.num_workers = num_workers
         self.batch_size = batch_size
         self.pin_memory: bool = gpus is not None and str(gpus) != "0"
+
+        assert batch_size.test == 1
 
         self.train_dataset: Optional[Dataset] = None
         self.val_datasets: Optional[Sequence[Dataset]] = None
@@ -101,6 +98,9 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         self.data_list_by_base_label = {
             label: data_list for label, data_list in self.data_list_by_label.items() if label in self.base_labels
         }
+        self.data_list_by_novel_label = {
+            label: data_list for label, data_list in self.data_list_by_label.items() if label in self.novel_labels
+        }
         self.graph_list_by_base_label = {
             label: graph_list for label, graph_list in self.graph_list_by_label.items() if label in self.base_labels
         }
@@ -112,16 +112,18 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         Load data from disk.
         """
 
+        # TODO: convert pickle to txt and use only the latter
         if dataset_name in {"TRIANGLES", "ENZYMES", "Letter_high", "Reddit", "DUMMY"}:
             # handle txt data
             classes_split = self.get_classes_split()
 
             graph_list: List[nx.Graph] = load_graph_list(data_dir, dataset_name)
+
             class_to_label_dict = get_classes_to_label_dict(graph_list)
-            self.map_classes_to_labels(graph_list, class_to_label_dict)
+            map_classes_to_labels(graph_list, class_to_label_dict)
 
             data_list = graph_list_to_data_list(
-                graph_list=self.graph_list,
+                graph_list=graph_list,
                 feature_params=feature_params,
             )
 
@@ -133,6 +135,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
                 feature_params=feature_params,
             )
             graph_list: List[nx.Graph] = data_list_to_graph_list(data_list)
+
             class_to_label_dict = {str(cls): cls for classes in classes_split.values() for cls in classes}
 
         else:
@@ -148,7 +151,7 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
     @property
     def labels_split(self):
         return {
-            split: [self.class_to_label_dict[str(cls)] for cls in classes]
+            split: sorted([self.class_to_label_dict[str(cls)] for cls in classes])
             for split, classes in self.classes_split.items()
         }
 
@@ -177,18 +180,6 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         ref_data = self.data_list[0]
         return ref_data.x.shape[-1]
 
-    def get_labels_split(self, classes_split, class_to_label_dict) -> Dict:
-        """
-        Return base and novel labels from the corresponding base and novel classes
-        """
-
-        base_labels = sorted([class_to_label_dict[stage_cls] for stage_cls in classes_split["base"]])
-        novel_labels = sorted([class_to_label_dict[stage_cls] for stage_cls in classes_split["novel"]])
-
-        labels_split = {"base": base_labels, "novel": novel_labels}
-
-        return labels_split
-
     def get_classes_split(self) -> Dict:
         """
         Returns the classes split from file if present, else creates and saves a new one.
@@ -200,35 +191,18 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         pylogger.info("No classes split provided, creating new split.")
         raise NotImplementedError
 
-    def split_query_support(self, data_list: List[Data]) -> Dict[str, List]:
-        """
-        Returns the indices splitting query and support samples.
-        These are obtained from a split file if it exists, otherwise they are created on the fly.
-        :param data_list:
-        :return:
-        """
-        pylogger.info("No query support split provided, executing the split.")
-
-        supports, queries = random_split_sequence(sequence=data_list, split_ratio=self.support_ratio)
-
-        return {"supports": supports, "queries": queries}
-
     def split_base_novel_samples(self) -> Dict[str, List[Data]]:
         """
         Split the samples in base and novel ones according to the labels
         """
-        base_samples: List[Data] = [
-            samples for key, samples in self.data_list_by_label.items() if key in self.base_labels
-        ]
-        base_samples = flatten(base_samples)
+        base_samples: List[List[Data]] = [samples for samples in self.data_list_by_base_label.values()]
+        base_samples: List[Data] = flatten(base_samples)
 
-        novel_samples: List[Data] = [
-            samples for key, samples in self.data_list_by_label.items() if key in self.novel_labels
-        ]
-        novel_samples = flatten(novel_samples)
+        novel_samples: List[List[Data]] = [samples for samples in self.data_list_by_novel_label.values()]
+        novel_samples: List[Data] = flatten(novel_samples)
 
         if "val" in self.labels_split.keys():
-            val_samples: List[Data] = [
+            val_samples: List[List[Data]] = [
                 samples for key, samples in self.data_list_by_label.items() if key in self.val_labels
             ]
             val_samples = flatten(val_samples)
@@ -242,7 +216,8 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
         pylogger.info(f"With label distribution: {Counter(sample.y.item() for sample in self.data_list)}")
         pylogger.info(f"Class to dict mapping: {self.class_to_label_dict}")
         pylogger.info(
-            f"Base labels:\\{self.base_labels}\\Validation labels:\\{self.val_labels}\\novel labels:\\{self.novel_labels}"
+            f"Base labels:\n{self.base_labels}\nValidation labels:"
+            f"\n{self.val_labels}\nnovel labels:\n{self.novel_labels}"
         )
 
     def __repr__(self) -> str:

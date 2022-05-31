@@ -10,7 +10,7 @@ optimizer:
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.baselines.adaptive_protonet.AdaptivePrototypicalNetwork
+  _target_: fs_grl.modules.architectures.adaptive_protonet.AdaptivePrototypicalNetwork
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
@@ -23,22 +23,23 @@ model:
     intraclass_var_reg: 0.0
     adaptive_reg: 0.1
 
-  num_classes_per_episode: ${nn.data.train_episode_hparams.num_classes_per_episode}
+  num_classes_per_episode: ${nn.data.episode_hparams.train.num_classes_per_episode}
 
   embedder:
-    _target_: fs_grl.modules.graph_embedder.GraphEmbedder
+    _target_: fs_grl.modules.components.graph_embedder.GraphEmbedder
     pooling: ${nn.model.pooling}
     feature_dim: ???
 
     node_embedder:
-      _target_: fs_grl.modules.node_embedder.NodeEmbedder
+      _target_: fs_grl.modules.components.node_embedder.NodeEmbedder
       feature_dim: ???
-      hidden_dim: 64
       embedding_dim: 64
+      hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}
       num_convs: 2
-      dropout_rate: 0.
+      dropout_rate: 0.0
       do_preprocess: false
-      batch_norm: graph
+      conv_norm: torch_geometric.nn.GraphNorm
+      postproc_mlp_norm: torch.nn.LayerNorm
       num_preproc_mlp_layers: 1
       num_postproc_mlp_layers: 2
       num_gin_mlp_layers: 2

@@ -12,14 +12,14 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torchmetrics import Accuracy, FBetaScore
 
-from fs_grl.data.datamodule import MetaData
-from fs_grl.data.episode import EpisodeBatch
-from fs_grl.pl_modules.transfer_learning import TransferLearningBaseline
+from fs_grl.data.datamodule.metadata import MetaData
+from fs_grl.data.episode.episode_batch import EpisodeBatch
+from fs_grl.pl_modules.base_module import BaseModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class TransferLearningTarget(TransferLearningBaseline):
+class TransferLearningTarget(BaseModule):
     def __init__(
         self,
         embedder: nn.Module,

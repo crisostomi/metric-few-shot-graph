@@ -17,11 +17,11 @@ from nn_core.serialization import NNCheckpointIO, load_model
 
 import fs_grl  # noqa
 from fs_grl.callbacks import build_callbacks, get_checkpoint_callback
-from fs_grl.data.datamodule import GraphFewShotDataModule
 
 # Force the execution of __init__.py if this file is executed directly.
+from fs_grl.custom_pipelines.gsm.gsm_source import GraphSpectralMeasuresSource
+from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
 from fs_grl.modules.meta_learning_loop import CustomFitLoop
-from fs_grl.pl_modules.gsm_source import GraphSpectralMeasuresSource
 
 pylogger = logging.getLogger(__name__)
 

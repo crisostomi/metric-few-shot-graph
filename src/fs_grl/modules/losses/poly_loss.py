@@ -14,7 +14,7 @@ class PolyCrossEntropyLoss(nn.Module):
         :param labels:
         :param epsilon:
 
-        :return:
+        :return
         """
 
         # pt, CE, and poly_loss have shape (B,)

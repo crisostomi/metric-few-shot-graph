@@ -224,5 +224,4 @@ fabric.properties
 
 useful_code
 /ssh-info.txt
-/ssh-vars.sh
 /exclude_rsync.txt

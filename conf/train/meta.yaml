@@ -14,7 +14,7 @@ trainer:
 
 restore:
   ckpt_or_run_path: null
-  mode: null # null, continue, hotstart
+  mode: null
 
 monitor:
   metric: 'metaval/outer_accuracy'
@@ -22,7 +22,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 20 # 50 for TL, 5 for DML
+    patience: 5
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}

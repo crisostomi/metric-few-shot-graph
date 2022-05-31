@@ -9,8 +9,9 @@ from torch.optim import Optimizer
 from torch_geometric.data import Batch
 from torchmetrics import Accuracy
 
-from fs_grl.data.episode import EpisodeBatch
-from fs_grl.modules.baselines.gnn_mlp import GNN_MLP
+from fs_grl.data.episode.episode_batch import EpisodeBatch
+from fs_grl.data.utils import SampleType
+from fs_grl.modules.architectures.gnn_mlp import GNN_MLP
 from fs_grl.pl_modules.meta_learning import MetaLearningModel
 
 
@@ -53,8 +54,8 @@ class MAMLModel(MetaLearningModel):
         outer_accuracy = metric.clone()
         inner_accuracy = metric.clone()
 
-        supports_by_episode = batch.split_in_episodes("supports")
-        queries_by_episode = batch.split_in_episodes("queries")
+        supports_by_episode = batch.split_in_episodes(SampleType.SUPPORT)
+        queries_by_episode = batch.split_in_episodes(SampleType.QUERY)
 
         for episode_idx, (episode_supports, episode_queries) in enumerate(zip(supports_by_episode, queries_by_episode)):
 
@@ -63,7 +64,6 @@ class MAMLModel(MetaLearningModel):
 
             track_higher_grads = True if metatrain else False
 
-            # TODO: understand what copy_initial_weights does
             with higher.innerloop_ctx(
                 self.gnn_mlp, self.inner_optimizer, copy_initial_weights=False, track_higher_grads=track_higher_grads
             ) as (fmodel, diffopt):

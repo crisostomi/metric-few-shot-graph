@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch_geometric.data import Batch, Data
 
-from fs_grl.data.dataset import VanillaGraphDataset
+from fs_grl.data.dataset.vanilla import VanillaGraphDataset
 
 pylogger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def compute_global_prototypes(
     :param model: pretrained model
     :param data_list_by_label: samples grouped by label
     :param label_to_class_dict: mapping label -> class
-    :return:
+    :return
     """
     model.eval()
     model.model.eval()
