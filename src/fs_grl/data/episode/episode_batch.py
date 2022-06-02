@@ -62,14 +62,6 @@ class EpisodeBatch:
         queries_batch: Batch = Batch.from_data_list(queries)
         global_labels_batch = torch.tensor(global_labels)
 
-        # LOCAL_Y_BUG
-        # TODO: fix, only one between query/support local labels and corresponding sample.local_y must remain
-        support_local_labels = torch.cat([episode.support_local_labels for episode in episode_list], dim=0)
-        query_local_labels = torch.cat([episode.query_local_labels for episode in episode_list], dim=0)
-
-        supports_batch.support_local_labels = support_local_labels
-        queries_batch.query_local_labels = query_local_labels
-
         return {
             "supports": supports_batch,
             "queries": queries_batch,

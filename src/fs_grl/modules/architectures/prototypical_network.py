@@ -157,14 +157,6 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         distances = distances.view(batch.num_episodes, -1, batch.episode_hparams.num_classes_per_episode)
         logits = -distances
 
-        # TODO LOCAL_Y_BUG: fix, only one between query/support local labels and corresponding sample.local_y must remain
-
-        # THIS WORKS
-        local_labels_per_episode = batch.queries.query_local_labels.view(
-            (batch.num_episodes, batch.episode_hparams.num_queries_per_episode)
-        )
-
-        # THIS DOESN'T
         local_labels_per_episode = batch.queries.local_y.view(
             (batch.num_episodes, batch.episode_hparams.num_queries_per_episode)
         )

@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import List
 
@@ -52,18 +53,9 @@ class Episode:
 
         self.episode_hparams = episode_hparams
 
-        self.supports = supports
-        self.queries = queries
-
         self.global_labels = global_labels
-        Episode.add_local_labels(self.supports)
-        Episode.add_local_labels(self.queries)
-
-        support_global_labels = torch.stack([support.y for support in supports])
-        query_global_labels = torch.stack([query.y for query in queries])
-
-        self.support_local_labels = torch.unique(support_global_labels, return_inverse=True)[1]
-        self.query_local_labels = torch.unique(query_global_labels, return_inverse=True)[1]
+        self.supports = Episode.add_local_labels(supports)
+        self.queries = Episode.add_local_labels(queries)
 
     @staticmethod
     def add_local_labels(samples: List[Data]):
@@ -75,11 +67,21 @@ class Episode:
                  and those having label 10 will be mapped to 1
         """
 
+        new_samples = []
+
         global_labels = torch.stack([sample.y for sample in samples])
 
         # unique sorts the global labels and assigns them progressive integers correspondingly
         # e.g. [10, 7, 7, 10] --> [7, 7, 10, 10] --> [0, 0, 1, 1] --> [1, 0, 0, 1]
         local_labels = torch.unique(global_labels, return_inverse=True, sorted=True)[1]
 
-        for ind, sample in enumerate(samples):
-            sample.local_y = local_labels[ind]
+        for sample, local_label in zip(samples, local_labels):
+            new_sample = Data(
+                x=copy.deepcopy(sample.x),
+                edge_index=copy.deepcopy(sample.edge_index),
+                y=copy.deepcopy(sample.y),
+                local_y=copy.deepcopy(local_label),
+            )
+            new_samples.append(new_sample)
+
+        return new_samples
