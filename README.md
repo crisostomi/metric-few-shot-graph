@@ -43,7 +43,7 @@ pytest -v
 
 Download the versioned datasets:
 ```bash
-dvc pull  # Login with your @di email when prompted
+dvc pull  
 dvc checkout
 ```
 
