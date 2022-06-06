@@ -1,4 +1,4 @@
-# FS-GRL
+# Metric Based Few-Shot Graph Classification
 
 <p align="center">
     <a href="https://github.com/lucmos/nn-template"><img alt="NN Template" src="https://shields.io/badge/nn--template-0.0.2-emerald?style=flat&labelColor=gray"></a>
