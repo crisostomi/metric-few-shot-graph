@@ -4,8 +4,8 @@ from typing import Dict, List, Optional, Sequence, Union
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from fs_grl.data.dataloader import EpisodicDataLoader
 from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
+from fs_grl.data.dataset.dataloader import EpisodicDataLoader
 from fs_grl.data.dataset.episodic import IterableEpisodicDataset, MapEpisodicDataset
 from fs_grl.data.utils import DotDict
 

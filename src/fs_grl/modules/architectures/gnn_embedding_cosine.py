@@ -13,7 +13,7 @@ class GNNEmbeddingCosine(GNNEmbeddingPairwise):
         super().__init__(cfg, feature_dim=feature_dim, num_classes=num_classes, **kwargs)
         self.loss_func = MarginLoss(margin=margin, reduction="mean")
 
-    def get_queries_prototypes_correlations_batch(
+    def compute_queries_prototypes_correlations_batch(
         self, queries: torch.Tensor, label_to_embedded_prototypes: List[Dict], batch: EpisodeBatch
     ):
         """
@@ -31,7 +31,7 @@ class GNNEmbeddingCosine(GNNEmbeddingPairwise):
 
         return similarities
 
-    def get_sample_prototypes_correlations(
+    def compute_sample_prototypes_correlations(
         self, sample: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
     ) -> torch.Tensor:
         """

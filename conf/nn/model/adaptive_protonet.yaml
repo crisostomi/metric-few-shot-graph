@@ -16,6 +16,7 @@ model:
   metric_scaling_factor: 7.5
   num_attention_heads: 1
   attention_dropout: 0.5
+  supports_aggregation: 'mean'
 
   loss_weights:
     classification_loss: 1

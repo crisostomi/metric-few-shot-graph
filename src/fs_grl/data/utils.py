@@ -1,11 +1,11 @@
 import math
-from enum import Enum
 from random import shuffle
 from typing import Dict, Iterable, List, Tuple, Union
 
 import networkx as nx
 import numpy as np
 import torch
+from backports.strenum import StrEnum
 from torch_geometric.data import Data
 
 
@@ -26,9 +26,14 @@ class DotDict(dict):
             raise AttributeError(k)
 
 
-class SampleType(Enum):
+class SampleType(StrEnum):
     SUPPORT = "supports"
     QUERY = "queries"
+
+
+class SupportsAggregation(StrEnum):
+    MEAN = "mean"
+    DEEPSETS = "deepsets"
 
 
 def flatten(iterable: Iterable) -> List:

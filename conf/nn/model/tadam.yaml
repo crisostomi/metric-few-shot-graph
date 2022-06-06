@@ -8,14 +8,15 @@ optimizer:
   _target_: torch.optim.Adam
   lr: 1e-4
 
-
 model:
-  _target_: fs_grl.modules.architectures.tadam.TADAM
+  _target_: fs_grl.modules.architectures.proto_tadam.ProtoTADAM
   feature_dim: ???
   num_classes: ???
   metric_scaling_factor: 7.5
   gamma_0_init: 0.0
   beta_0_init: 1.0
+  supports_aggregation: 'mean'
+
 
   loss_weights:
     classification_loss: 1

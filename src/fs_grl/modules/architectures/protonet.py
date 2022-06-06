@@ -5,11 +5,15 @@ from omegaconf import DictConfig
 from torch.nn import CrossEntropyLoss
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.architectures.gnn_embedding_similarity import GNNEmbeddingSimilarity
+from fs_grl.modules.architectures.gnn_prototype_based import GNNPrototypeFromGraphs
 from fs_grl.modules.similarities.squared_l2 import squared_l2
 
 
-class PrototypicalNetwork(GNNEmbeddingSimilarity):
+class PrototypicalNetwork(GNNPrototypeFromGraphs):
+    """
+    The notorious Prototypical Network architecture adapted to graphs.
+    """
+
     def __init__(
         self,
         cfg: DictConfig,
@@ -29,22 +33,22 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         )
         self.loss_func = CrossEntropyLoss()
 
-    def forward(self, batch: EpisodeBatch):
+    def forward(self, batch: EpisodeBatch) -> Dict:
         """
         :param batch:
+
         :return
         """
 
-        graph_level = not self.prototypes_from_nodes
-        embedded_supports = self.embed_supports(batch, graph_level=graph_level)
+        embedded_supports = self.embed_supports(batch)
 
         # shape (num_queries_batch, hidden_dim)
         embedded_queries = self.embed_queries(batch)
 
         # list (num_episodes) of dicts {label: prototype, ...}
-        prototypes_dicts = self.get_prototypes(embedded_supports, batch)
+        prototypes_dicts = self.compute_prototypes(embedded_supports, batch)
 
-        distances = self.get_queries_prototypes_correlations_batch(embedded_queries, prototypes_dicts, batch)
+        distances = self.compute_queries_prototypes_correlations_batch(embedded_queries, prototypes_dicts, batch)
         distances = self.metric_scaling_factor * distances
 
         return {
@@ -54,30 +58,32 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
             "distances": distances,
         }
 
-    def get_queries_prototypes_correlations_batch(
-        self, embedded_queries: torch.Tensor, class_prototypes: List[Dict], batch: EpisodeBatch
-    ):
+    def compute_queries_prototypes_correlations_batch(
+        self, embedded_queries: torch.Tensor, prototypes_dicts: List[Dict], batch: EpisodeBatch
+    ) -> torch.Tensor:
         """
+        Computes similarities or distances between queries and the label prototypes.
 
-        :param embedded_queries ~ (num_queries_batch*num_classes, hidden_dim)
-        :param class_prototypes ~ (num_queries_batch*num_classes, hidden_dim)
+        :param embedded_queries: (num_queries_batch, hidden_dim)
+        :param prototypes_dicts: list (num_episodes) of dicts {label: prototype, ...}
         :param batch:
 
         :return
         """
-        batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, class_prototypes)
-        batch_queries, batch_prototypes = batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"]
+        batch_queries_prototypes = self.align_queries_prototypes(batch, embedded_queries, prototypes_dicts)
 
-        distances = squared_l2(batch_queries, batch_prototypes)
+        distances = squared_l2(batch_queries_prototypes["queries"], batch_queries_prototypes["prototypes"])
 
         return distances
 
-    def get_sample_prototypes_correlations(
+    def compute_sample_prototypes_correlations(
         self, sample: torch.Tensor, prototypes: torch.Tensor, batch: EpisodeBatch
     ) -> torch.Tensor:
         """
-        :param sample:
-        :param prototypes:
+        Compute similarities or distances between a sample and the episode label prototypes.
+
+        :param sample: tensor ~ (E)
+        :param prototypes: tensor ~ (N, E) of label prototypes
         :param batch:
 
         :return
@@ -98,7 +104,11 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         # shape ~(num_episodes * num_queries_per_class * num_classes_per_episode)
         distances = step_out["model_out"]["distances"]
 
-        distances = distances.view(batch.num_episodes, -1, batch.episode_hparams.num_classes_per_episode)
+        distances = distances.view(
+            batch.num_episodes,
+            batch.episode_hparams.num_queries_per_episode,
+            batch.episode_hparams.num_classes_per_episode,
+        )
         logits = -distances
 
         probabilities = torch.log_softmax(logits, dim=-1)
@@ -119,9 +129,10 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         :param sample:
         :param label_to_prototype_embeddings:
         :param batch:
+
         :return
         """
-        sampler_to_prototypes_distances = self.compute_sample_prototypes_correlations(
+        sampler_to_prototypes_distances = self.get_sample_prototypes_correlations(
             sample, label_to_prototype_embeddings, batch
         )
         sample_class_distr = torch.softmax(-self.metric_scaling_factor * sampler_to_prototypes_distances, dim=-1)
@@ -139,7 +150,7 @@ class PrototypicalNetwork(GNNEmbeddingSimilarity):
         losses["classification_loss"] = self.compute_classification_loss(model_out, batch)
 
         if self.loss_weights["latent_mixup_reg"] > 0:
-            losses["latent_mixup_reg"] = self.compute_latent_mixup_reg(model_out, batch)
+            losses["latent_mixup_reg"] = self.mixup_augmentor.compute_latent_mixup_reg(model_out, batch)
 
         if self.loss_weights["intraclass_var_reg"] > 0:
             losses["intraclass_var_reg"] = self.model.compute_intraclass_var_reg(

@@ -1,4 +1,3 @@
-import copy
 from dataclasses import dataclass
 from typing import List
 
@@ -60,7 +59,7 @@ class Episode:
     @staticmethod
     def add_local_labels(samples: List[Data]):
         """
-        In place function that adds to each sample its local label in the episode.
+        Return samples enriched with their local label in the episode.
 
         Example: If the episode has N=2 labels = [7, 10], local labels will be [0, 1]
                  all the samples having label 7 will be mapped to 0,
@@ -75,12 +74,14 @@ class Episode:
         # e.g. [10, 7, 7, 10] --> [7, 7, 10, 10] --> [0, 0, 1, 1] --> [1, 0, 0, 1]
         local_labels = torch.unique(global_labels, return_inverse=True, sorted=True)[1]
 
+        # only the local label will change for the same sample in different episodes,
+        # remaining attributes may be shared
         for sample, local_label in zip(samples, local_labels):
             new_sample = Data(
-                x=copy.deepcopy(sample.x),
-                edge_index=copy.deepcopy(sample.edge_index),
-                y=copy.deepcopy(sample.y),
-                local_y=copy.deepcopy(local_label),
+                x=sample.x,
+                edge_index=sample.edge_index,
+                y=sample.y,
+                local_y=local_label,
             )
             new_samples.append(new_sample)
 

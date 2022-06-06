@@ -4,18 +4,19 @@ import torch
 from torch import nn
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.architectures.gnn_embedding_similarity import GNNEmbeddingSimilarity
+from fs_grl.modules.architectures.gnn_prototype_based import GNNPrototypeBased
 from fs_grl.modules.similarities.cosine import cosine, cosine_distance_1D
 
 
-class GNNEmbeddingTriplet(GNNEmbeddingSimilarity):
+# TODO: refactor and validate
+class GNNEmbeddingTriplet(GNNPrototypeBased):
     def __init__(self, cfg, feature_dim, num_classes, margin, **kwargs):
         super().__init__(cfg, feature_dim=feature_dim, num_classes=num_classes, **kwargs)
         self.loss_func = nn.TripletMarginWithDistanceLoss(
             margin=margin, reduction="mean", distance_function=cosine_distance_1D
         )
 
-    def get_queries_prototypes_correlations_batch(self, embedded_queries, class_prototypes, batch):
+    def compute_queries_prototypes_correlations_batch(self, embedded_queries, class_prototypes, batch):
         """
 
         :param embedded_queries ~
@@ -57,12 +58,8 @@ class GNNEmbeddingTriplet(GNNEmbeddingSimilarity):
         :return
         """
 
-        num_queries_per_episode = (
-            batch.episode_hparams.num_queries_per_class * batch.episode_hparams.num_classes_per_episode
-        )
-
-        embedded_queries_per_episode = queries.split(tuple([num_queries_per_episode] * batch.num_episodes))
-        local_labels_per_episode = batch.local_labels.split(tuple([num_queries_per_episode] * batch.num_episodes))
+        embedded_queries_per_episode = queries.split(tuple([batch.num_queries_per_episode] * batch.num_episodes))
+        local_labels_per_episode = batch.local_labels.split(tuple([batch.num_queries_per_episode] * batch.num_episodes))
 
         batch_queries = []
         batch_positives = []

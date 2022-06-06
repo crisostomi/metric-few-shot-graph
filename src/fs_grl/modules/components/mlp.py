@@ -12,7 +12,7 @@ class MLP(nn.Module):
         :param output_dim:
         :param hidden_dim:
         :param non_linearity:
-        :param batch_norm:
+        :param norm:
         """
 
         super(MLP, self).__init__()

@@ -135,7 +135,9 @@ class FullyGraphical(BaseModule):
             step_out["model_out"]["class_prototypes"],
         )
 
-        similarities = self.model.get_queries_prototypes_correlations_batch(embedded_queries, class_prototypes, batch)
+        similarities = self.model.compute_queries_prototypes_correlations_batch(
+            embedded_queries, class_prototypes, batch
+        )
 
         # similarities = step_out["similarities"]
 

@@ -4,7 +4,7 @@ import torch
 from omegaconf import DictConfig
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.architectures.prototypical_network import PrototypicalNetwork
+from fs_grl.modules.architectures.protonet import PrototypicalNetwork
 from fs_grl.modules.components.attention import MultiHeadAttention
 from fs_grl.modules.similarities.squared_l2 import squared_l2
 
@@ -50,6 +50,7 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
         :return
         """
 
+        # samples are embedded as in the standard ProtoNet
         protonet_out = super().forward(batch)
 
         prototypes_dicts, embedded_queries, embedded_supports = (
@@ -60,9 +61,11 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
 
         adapted_prototypes_dicts = self.adapt_prototypes(prototypes_dicts, batch)
 
-        auxiliary_distances = self.get_auxiliary_distances(embedded_queries, embedded_supports, batch)
+        auxiliary_distances = self.compute_auxiliary_distances(embedded_queries, embedded_supports, batch)
 
-        distances = self.get_queries_prototypes_correlations_batch(embedded_queries, adapted_prototypes_dicts, batch)
+        distances = self.compute_queries_prototypes_correlations_batch(
+            embedded_queries, adapted_prototypes_dicts, batch
+        )
         distances = self.metric_scaling_factor * distances
 
         return {
@@ -77,7 +80,8 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
         """
         Adapt prototypes to the specific episode by passing them into a Transformer block
 
-        :param prototypes_dicts:
+        :param prototypes_dicts: list (num_episodes) containing for each episode the mapping
+                                 label -> prototype
         :param batch:
 
         :return: adapted prototypes for each episode
@@ -96,21 +100,28 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
 
         adapted_prototypes = self.attention(stacked_prototypes, stacked_prototypes, stacked_prototypes)
 
-        adapted_prototypes_dict = [
-            {lab: prot for lab, prot in zip(episode_prototype_dict.keys(), episode_adapted_prots)}
-            for episode_adapted_prots, episode_prototype_dict in zip(adapted_prototypes, prototypes_dicts)
-        ]
-        return adapted_prototypes_dict
+        adapted_prototypes_dicts = []
+        for episode_adapted_prots, episode_prototype_dict in zip(adapted_prototypes, prototypes_dicts):
+            episode_labels = episode_prototype_dict.keys()
+            episode_adapted_proto_dict = {}
 
-    def get_auxiliary_distances(
+            for label, adapted_prototype in zip(episode_labels, episode_adapted_prots):
+                episode_adapted_proto_dict[label] = adapted_prototype
+
+            adapted_prototypes_dicts.append(episode_adapted_proto_dict)
+
+        return adapted_prototypes_dicts
+
+    def compute_auxiliary_distances(
         self, embedded_queries: torch.Tensor, embedded_supports: torch.Tensor, batch: EpisodeBatch
     ):
         """
-        #TODO: validate and refactor
+        # TODO: validate and refactor
 
         :param embedded_queries: (B*N*Q, E)
         :param embedded_supports: (B*N*K, E)
         :param batch:
+
         :return
         """
 
@@ -121,54 +132,60 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
         )
         K, Q = batch.episode_hparams.num_supports_per_class, batch.episode_hparams.num_queries_per_class
 
-        # ( B, (N*Q)+(N*K) )
+        num_supports_episode = batch.episode_hparams.num_supports_per_episode
+        num_queries_episode = batch.episode_hparams.num_queries_per_episode
+        num_samples_label = K + Q
 
-        local_labels = torch.cat((batch.supports.local_y.view(B, N * K), batch.queries.local_y.view(B, N * Q)), dim=1)
+        # (B, num_supports_episode)
+        support_local_y_by_episode = batch.supports.local_y.view(B, num_supports_episode)
+        # (B, num_queries_episode)
+        query_local_y_by_episode = batch.queries.local_y.view(B, num_queries_episode)
 
-        supports_reshaped = embedded_supports.view(B, N * K, E)
-        queries_reshaped = embedded_queries.view(B, N * Q, E)
+        # (B, total_samples_episode)
+        local_labels = torch.cat(
+            (support_local_y_by_episode, query_local_y_by_episode),
+            dim=1,
+        )
 
-        # ( B, (N*K)+(N*Q), E )
-        supports_and_queries = torch.cat((supports_reshaped, queries_reshaped), dim=1)
+        supports_by_episode = embedded_supports.view(B, num_supports_episode, E)
+        queries_by_episode = embedded_queries.view(B, num_queries_episode, E)
+
+        # ( B, total_samples_episode, E )
+        samples = torch.cat((supports_by_episode, queries_by_episode), dim=1)
 
         # sort the embeddings by class for each episode
         local_labels_sorted = local_labels.argsort(dim=-1)
 
-        # ( B, (N*K)+(N*Q), E )
-        supports_and_queries_by_label = supports_and_queries[torch.arange(B).unsqueeze(-1), local_labels_sorted]
+        # ( B, total_samples_episode, E )
+        samples_sorted_by_label = samples[torch.arange(B).unsqueeze(-1), local_labels_sorted]
 
-        # (B*N, K+Q, E)
-        supports_and_queries_by_label = supports_and_queries_by_label.view(B * N, K + Q, E)
+        # (B*N, num_samples_label, E)
+        samples_sorted_by_label = samples_sorted_by_label.view(B * N, num_samples_label, E)
 
-        # (B*N, K+Q, E)
-        adapted_samples = self.attention(
-            supports_and_queries_by_label, supports_and_queries_by_label, supports_and_queries_by_label
+        # (B*N, num_samples_label, E)
+        adapted_samples = self.attention(samples_sorted_by_label, samples_sorted_by_label, samples_sorted_by_label)
+
+        # (B, N, num_samples_label, E)
+        adapted_samples = adapted_samples.view(B, N, num_samples_label, E)
+
+        # ( B * N * (num_samples_label), 1, E )
+        samples_sorted_by_label = (
+            samples_sorted_by_label.reshape(-1, E).unsqueeze(1).expand(B * N * num_samples_label, N, E)
         )
-
-        # (B, N, K + Q, E)
-        adapted_samples = adapted_samples.view(B, N, K + Q, E)
 
         # (B, N, E)
         auxiliary_prototypes = torch.mean(adapted_samples, dim=2)
 
-        # ( K+Q, B*N, E )
-        supports_and_queries_by_label = supports_and_queries_by_label.permute([1, 0, 2])
-
-        # ( B*N * (K+Q), 1, E )
-        supports_and_queries_by_label = supports_and_queries_by_label.reshape(-1, E).unsqueeze(1)
-
         # (B, 1, N, E)
         auxiliary_prototypes = auxiliary_prototypes.unsqueeze(1)
-        # (B, N*(K+Q), N, E)
-        auxiliary_prototypes = auxiliary_prototypes.expand(B, N * (K + Q), N, E)
+        # (B, N*(num_samples_label), N, E)
+        auxiliary_prototypes = auxiliary_prototypes.expand(B, N * num_samples_label, N, E)
 
-        # (B * N*(K+Q), N, E)
-        auxiliary_prototypes = auxiliary_prototypes.reshape(B * N * (K + Q), N, E)
+        # (B * N * (num_samples_label), N, E)
+        auxiliary_prototypes = auxiliary_prototypes.reshape(B * N * num_samples_label, N, E)
 
-        # (B * N * (K + Q), N)
-        auxiliary_distances = self.metric_scaling_factor * squared_l2(
-            auxiliary_prototypes, supports_and_queries_by_label
-        )
+        # (B * N * (num_samples_label), N)
+        auxiliary_distances = self.metric_scaling_factor * squared_l2(auxiliary_prototypes, samples_sorted_by_label)
 
         return auxiliary_distances
 
@@ -195,22 +212,28 @@ class AdaptivePrototypicalNetwork(PrototypicalNetwork):
             batch.episode_hparams.num_supports_per_class,
             batch.episode_hparams.num_queries_per_class,
         )
+        num_supports_episode, num_queries_episode = (
+            batch.episode_hparams.num_supports_per_episode,
+            batch.episode_hparams.num_queries_per_episode,
+        )
+        num_samples_label = K + Q
 
-        # (B * ( (N * K) + (N * Q) ), N)
+        # (B * N * num_samples_label, N)
         distances = model_out["aux_distances"]
-        assert list(distances.shape) == [B * ((N * K) + (N * Q)), N]
+        assert list(distances.shape) == [B * N * num_samples_label, N]
 
-        # (B, (N*K) + (N*Q), N)
-        distances = distances.view(B, (N * K) + (N * Q), N)
+        # (B, N * num_samples_label, N)
+        distances = distances.view(B, N * num_samples_label, N)
         logits = -distances
 
-        # (B, (N*Q))
-        query_labels = batch.queries.local_y.view(B, N * Q)
-        # (B, (N*K))
-        support_labels = batch.supports.local_y.view(B, N * K)
+        # (B, num_queries_episode)
+        query_local_y_by_episode = batch.queries.local_y.view(B, num_queries_episode)
 
-        # (B, (N*K) + (N*Q))
-        labels_per_episode = torch.cat((support_labels, query_labels), dim=1)
+        # (B, num_supports_episode)
+        support_local_y_by_episode = batch.supports.local_y.view(B, num_supports_episode)
+
+        # (B, num_queries_episode + num_supports_episode)
+        labels_per_episode = torch.cat((support_local_y_by_episode, query_local_y_by_episode), dim=1)
         labels_per_episode = torch.sort(labels_per_episode, dim=-1).values
 
         cum_loss = 0

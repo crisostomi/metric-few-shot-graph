@@ -1,39 +1,17 @@
-from typing import Dict
-
 import torch
-from omegaconf import DictConfig
 from torch_geometric.data import Batch
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.architectures.prototypical_network import PrototypicalNetwork
 from fs_grl.modules.components.task_embedding_network import TaskEmbeddingNetwork
 
 
-class TADAM(PrototypicalNetwork):
+class TADAM:
     """
     Extension of the standard Prototypical Network architecture inspired by
     Task Adaptive Task Dependent Adaptive Metric https://arxiv.org/abs/1805.10123
     """
 
-    def __init__(
-        self,
-        cfg: DictConfig,
-        feature_dim: int,
-        num_classes: int,
-        loss_weights: Dict,
-        metric_scaling_factor: float,
-        gamma_0_init: float,
-        beta_0_init: float,
-        **kwargs
-    ):
-        super().__init__(
-            cfg,
-            feature_dim=feature_dim,
-            num_classes=num_classes,
-            metric_scaling_factor=metric_scaling_factor,
-            loss_weights=loss_weights,
-            **kwargs
-        )
+    def __init__(self, gamma_0_init: float, beta_0_init: float, **kwargs):
 
         self.task_embedding_network = TaskEmbeddingNetwork(
             hidden_size=self.embedder.embedding_dim // 2,
@@ -42,39 +20,6 @@ class TADAM(PrototypicalNetwork):
             beta_0_init=beta_0_init,
             gamma_0_init=gamma_0_init,
         )
-
-    def forward(self, batch: EpisodeBatch):
-
-        episode_embeddings = self.get_episode_embeddings(batch)
-        gammas, betas = self.task_embedding_network(episode_embeddings)
-
-        num_supports_repetitions = (
-            torch.tensor([batch.episode_hparams.num_supports_per_episode for _ in range(batch.num_episodes)])
-            .type_as(gammas)
-            .int()
-        )
-        num_queries_repetitions = (
-            torch.tensor([batch.episode_hparams.num_queries_per_episode for _ in range(batch.num_episodes)])
-            .type_as(gammas)
-            .int()
-        )
-
-        query_gammas, query_betas = self.align_gammas_betas(gammas, betas, num_queries_repetitions, batch.queries)
-        support_gammas, support_betas = self.align_gammas_betas(gammas, betas, num_supports_repetitions, batch.supports)
-
-        embedded_supports = self.task_conditioned_embed_supports(batch.supports, support_gammas, support_betas)
-        embedded_queries = self.task_conditioned_embed_queries(batch.queries, query_gammas, query_betas)
-        prototypes_dicts = self.get_prototypes(embedded_supports, batch)
-
-        distances = self.get_queries_prototypes_correlations_batch(embedded_queries, prototypes_dicts, batch)
-        distances = self.metric_scaling_factor * distances
-
-        return {
-            "embedded_queries": embedded_queries,
-            "embedded_supports": embedded_supports,
-            "prototypes_dicts": prototypes_dicts,
-            "distances": distances,
-        }
 
     def align_gammas_betas(
         self, gammas: torch.Tensor, betas: torch.Tensor, num_sample_repetitions: torch.Tensor, batch: Batch
@@ -85,6 +30,7 @@ class TADAM(PrototypicalNetwork):
         :param betas:
         :param num_sample_repetitions:
         :param batch:
+
         :return
         """
 
@@ -109,11 +55,10 @@ class TADAM(PrototypicalNetwork):
 
         :return tensor ~ (num_episodes, embedding_dim)
         """
-        graph_level = not self.prototypes_from_nodes
-        embedded_supports = self.embed_supports(batch, graph_level=graph_level)
+        embedded_supports = self.embed_supports(batch)
 
         # list (num_episodes) of dicts {label: prototype, ...}
-        prototypes_dicts = self.get_prototypes(embedded_supports, batch)
+        prototypes_dicts = self.compute_prototypes(embedded_supports, batch)
 
         episode_embeddings = []
         for prototypes_dict_per_episode in prototypes_dicts:

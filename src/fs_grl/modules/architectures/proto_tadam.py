@@ -1,51 +1,40 @@
+from typing import Dict
+
 import torch
+from omegaconf import DictConfig
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.architectures.adaptive_protonet import AdaptivePrototypicalNetwork
+from fs_grl.modules.architectures.protonet import PrototypicalNetwork
 from fs_grl.modules.architectures.tadam import TADAM
-from fs_grl.modules.components.attention import MultiHeadAttention
 
 
-class AdaptiveTADAM(TADAM, AdaptivePrototypicalNetwork):
+class ProtoTADAM(TADAM, PrototypicalNetwork):
     """
-    Extension of the standard Prototypical Network that merges the task embedding adaption from
-    "Few-Shot Learning via Embedding Adaptation with Set-to-Set Functions" https://arxiv.org/abs/1812.03664
-    and that of "Task Adaptive Task Dependent Adaptive Metric" https://arxiv.org/abs/1805.10123
+    Extension of the standard Prototypical Network architecture inspired by
+    Task Adaptive Task Dependent Adaptive Metric https://arxiv.org/abs/1805.10123
     """
 
     def __init__(
         self,
-        cfg,
-        feature_dim,
-        num_classes,
-        loss_weights,
-        metric_scaling_factor,
-        gamma_0_init,
-        beta_0_init,
-        num_attention_heads,
-        attention_dropout,
+        cfg: DictConfig,
+        feature_dim: int,
+        num_classes: int,
+        loss_weights: Dict,
+        metric_scaling_factor: float,
+        gamma_0_init: float,
+        beta_0_init: float,
         **kwargs
     ):
-        AdaptivePrototypicalNetwork.__init__(
+        PrototypicalNetwork.__init__(
             self,
-            cfg=cfg,
+            cfg,
             feature_dim=feature_dim,
             num_classes=num_classes,
             metric_scaling_factor=metric_scaling_factor,
             loss_weights=loss_weights,
-            num_attention_heads=num_attention_heads,
-            attention_dropout=attention_dropout,
-            **kwargs,
+            **kwargs
         )
         TADAM.__init__(self, gamma_0_init=gamma_0_init, beta_0_init=beta_0_init)
-
-        self.attention = MultiHeadAttention(
-            n_head=num_attention_heads,
-            d_model=self.embedder.embedding_dim,
-            d_k=self.embedder.embedding_dim,
-            d_v=self.embedder.embedding_dim,
-            dropout=attention_dropout,
-        )
 
     def forward(self, batch: EpisodeBatch):
 
@@ -70,33 +59,22 @@ class AdaptiveTADAM(TADAM, AdaptivePrototypicalNetwork):
         embedded_queries = self.task_conditioned_embed_queries(batch.queries, query_gammas, query_betas)
         prototypes_dicts = self.compute_prototypes(embedded_supports, batch)
 
-        adapted_prototypes_dicts = self.adapt_prototypes(prototypes_dicts, batch)
-
-        auxiliary_distances = self.compute_auxiliary_distances(embedded_queries, embedded_supports, batch)
-
-        distances = self.compute_queries_prototypes_correlations_batch(
-            embedded_queries, adapted_prototypes_dicts, batch
-        )
+        distances = self.compute_queries_prototypes_correlations_batch(embedded_queries, prototypes_dicts, batch)
         distances = self.metric_scaling_factor * distances
 
         return {
             "embedded_queries": embedded_queries,
             "embedded_supports": embedded_supports,
-            "prototypes_dicts": adapted_prototypes_dicts,
+            "prototypes_dicts": prototypes_dicts,
             "distances": distances,
-            "aux_distances": auxiliary_distances,
         }
 
     def compute_losses(self, model_out, batch):
-
         losses = super().compute_losses(model_out, batch)
 
         losses["film_reg"] = self.loss_weights["film_reg"] * (
             torch.norm(self.task_embedding_network.gamma_0, p=2) + torch.norm(self.task_embedding_network.beta_0, p=2)
         )
-
-        if self.loss_weights["adaptive_reg"] > 0:
-            losses["adaptive_reg"] = self.compute_adaptive_reg(model_out, batch)
 
         losses["total"] = self.compute_total_loss(losses)
         return losses
