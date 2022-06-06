@@ -6,7 +6,7 @@
     <a href="https://black.readthedocs.io/en/stable/"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
-Metric Based Few-Shot Graph Classification
+Codebase for the paper "Metric Based Few-Shot Graph Classification", soon to be released.
 
 ## Installation
 
