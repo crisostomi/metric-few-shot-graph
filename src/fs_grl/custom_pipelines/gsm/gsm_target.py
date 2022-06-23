@@ -8,6 +8,7 @@ from fs_grl.custom_pipelines.gsm.modules import ClassifierLayer
 from fs_grl.data.datamodule.metadata import MetaData
 from fs_grl.data.episode.episode_batch import EpisodeBatch
 from fs_grl.pl_modules.transfer_learning_target import TransferLearningTarget
+from fs_grl.pl_modules.utils import log_tsne_plot
 
 
 class GraphSpectralMeasuresTarget(TransferLearningTarget):
@@ -54,7 +55,7 @@ class GraphSpectralMeasuresTarget(TransferLearningTarget):
             supports_queries, is_metatest=True
         )
 
-        logits, _ = self.classifier(output_embeds[: batch.episode_hparams.num_supports_per_episode])
+        logits, _ = self.classifier(output_embeds[: batch.num_samples_per_episode["supports"]])
 
         targets = batch.supports.y
 
@@ -75,13 +76,21 @@ class GraphSpectralMeasuresTarget(TransferLearningTarget):
         supports = batch.supports.to_data_list()
         queries = batch.queries.to_data_list()
 
-        num_supports = batch.episode_hparams.num_supports_per_episode
+        num_supports = batch.num_samples_per_episode["supports"]
 
         supports_and_queries = supports + queries
 
         output_embeds, (node_embeds, Adj_block_idx), gin_preds, edges = self.embedder(
             supports_and_queries, is_metatest=True
         )
+
+        if batch_idx is not None and batch_idx < 10:
+            support_labels = batch.supports.y.detach().cpu()
+            query_labels = batch.queries.y.detach().cpu()
+            classes = torch.cat([support_labels, query_labels], dim=0)
+            lens = {"support": len(support_labels), "query": len(query_labels)}
+
+            log_tsne_plot(output_embeds, classes, lens, batch_idx, self.embedder, self.hparams, self.logger)
 
         logits, embeddings = self.classifier(output_embeds)
 

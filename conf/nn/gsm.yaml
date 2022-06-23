@@ -4,7 +4,7 @@ defaults:
   - model: gsm
 
 data:
-  _target_: fs_grl.gsm.datamodule.GSMDataModule
+  _target_: fs_grl.custom_pipelines.gsm.datamodule.GSMDataModule
 
   dataset_name: ???
   feature_params:

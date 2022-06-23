@@ -17,6 +17,7 @@ from nn_core.serialization import NNCheckpointIO, load_model
 
 import fs_grl  # noqa
 from fs_grl.callbacks import build_callbacks, get_checkpoint_callback
+from fs_grl.custom_pipelines.gsm.datamodule import GSMDataModule
 
 # Force the execution of __init__.py if this file is executed directly.
 from fs_grl.custom_pipelines.gsm.gsm_source import GraphSpectralMeasuresSource
@@ -44,7 +45,7 @@ def run(cfg: DictConfig) -> str:
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 
     pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
-    datamodule: GraphFewShotDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    datamodule: GSMDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
 
     metadata: Dict = getattr(datamodule, "metadata", None)
 
@@ -110,7 +111,7 @@ def run(cfg: DictConfig) -> str:
     return logger.run_dir
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")
+@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="gsm")
 def main(cfg: omegaconf.DictConfig):
     run(cfg)
 

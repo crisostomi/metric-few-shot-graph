@@ -35,8 +35,8 @@ class EpisodeBatch:
         self.global_labels = global_labels
 
         self.num_samples_per_episode = {
-            SampleType.QUERY: self.episode_hparams.num_queries_per_episode,
-            SampleType.SUPPORT: self.episode_hparams.num_supports_per_episode,
+            SampleType.QUERY: self.episode_hparams.num_queries_per_class * episode_hparams.num_classes_per_episode,
+            SampleType.SUPPORT: self.episode_hparams.num_supports_per_class * episode_hparams.num_classes_per_episode,
         }
         self.samples = {SampleType.QUERY: self.queries, SampleType.SUPPORT: self.supports}
 

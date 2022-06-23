@@ -6,8 +6,8 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch_geometric.data import Batch, Data
 
-from fs_grl.data.dataloader import EpisodicDataLoader
 from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
+from fs_grl.data.dataset.dataloader import EpisodicDataLoader
 from fs_grl.data.dataset.episodic import MapEpisodicDataset
 from fs_grl.data.dataset.vanilla import VanillaGraphDataset
 from fs_grl.data.episode.episode import EpisodeHParams

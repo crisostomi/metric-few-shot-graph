@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Data
 
-from fs_grl.gsm.mlp import MLP
+from fs_grl.custom_pipelines.gsm.mlp import MLP
 
 
 class GINClassifier(nn.Module):
