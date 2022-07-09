@@ -9,6 +9,7 @@ from nn_core.model_logging import NNLogger
 from fs_grl.data.datamodule.metadata import MetaData
 from fs_grl.data.episode.episode_batch import EpisodeBatch
 from fs_grl.pl_modules.base_module import BaseModule
+from fs_grl.pl_modules.utils import log_tsne_plot, prototypes_dict_to_tensor
 
 pylogger = logging.getLogger(__name__)
 
@@ -50,9 +51,25 @@ class DistanceMetricLearning(BaseModule):
 
         return model_out
 
-    def step(self, batch, split: str) -> Mapping[str, Any]:
+    def step(self, batch, split: str, batch_idx: int = None) -> Mapping[str, Any]:
 
         model_out = self(batch)
+
+        if batch_idx is not None and batch_idx < 10:
+
+            query_embeds = model_out["embedded_queries"].detach().cpu()
+            query_labels = batch.queries.y.detach().cpu()
+
+            support_embeds = model_out["embedded_supports"].detach().cpu()
+            support_labels = batch.supports.y.detach().cpu()
+
+            prototype_embeds, prototype_labels = prototypes_dict_to_tensor(model_out["prototypes_dicts"][0])
+
+            embeds = torch.cat([support_embeds, query_embeds, prototype_embeds], dim=0)
+            classes = torch.cat([support_labels, query_labels, prototype_labels], dim=0)
+            lens = {"support": len(support_labels), "query": len(query_labels), "prototype": len(prototype_labels)}
+
+            log_tsne_plot(embeds, classes, lens, batch_idx, self.model, self.hparams, self.logger)
 
         losses = self.model.compute_losses(model_out, batch)
 
@@ -86,7 +103,7 @@ class DistanceMetricLearning(BaseModule):
 
     def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
-        step_out = self.step(batch, "test")
+        step_out = self.step(batch, "test", batch_idx)
 
         predictions = self.model.get_predictions(step_out, batch)
 
