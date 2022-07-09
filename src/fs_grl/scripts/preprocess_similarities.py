@@ -13,7 +13,7 @@ from nn_core.serialization import load_model
 import fs_grl  # noqa
 
 # Force the execution of __init__.py if this file is executed directly.
-from fs_grl.data.datamodule import GraphFewShotDataModule
+from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
 from fs_grl.pl_modules.distance_metric_learning import DistanceMetricLearning
 from fs_grl.utils import compute_global_prototypes
 

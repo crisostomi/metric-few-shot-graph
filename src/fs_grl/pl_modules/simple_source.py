@@ -8,7 +8,7 @@ from torch_geometric.data import Batch
 from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule.metadata import MetaData
-from fs_grl.modules.graph_embedder import GraphEmbedder
+from fs_grl.modules.components.graph_embedder import GraphEmbedder
 from fs_grl.pl_modules.transfer_learning_source import TransferLearningSource
 
 pylogger = logging.getLogger(__name__)

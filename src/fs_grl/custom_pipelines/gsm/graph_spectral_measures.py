@@ -6,9 +6,9 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.nn import knn_graph
 
-from fs_grl.gsm.graph_ismorphism_network import GINClassifier, GraphIsomorphismNetwork
-from fs_grl.gsm.modules import GATLayer, Regularizer
-from fs_grl.gsm.utils import create_gat_knn_params
+from fs_grl.custom_pipelines.gsm.graph_ismorphism_network import GINClassifier, GraphIsomorphismNetwork
+from fs_grl.custom_pipelines.gsm.modules import GATLayer, Regularizer
+from fs_grl.custom_pipelines.gsm.utils import create_gat_knn_params
 
 
 class GraphSpectralMeasures(nn.Module):

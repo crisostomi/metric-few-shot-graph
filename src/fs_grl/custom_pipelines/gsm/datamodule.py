@@ -14,7 +14,6 @@ from sklearn.cluster import AgglomerativeClustering
 from tqdm import tqdm
 
 from fs_grl.data.datamodule.transfer_datamodule import GraphTransferDataModule
-from fs_grl.data.episode.episode import EpisodeHParams
 
 pylogger = logging.getLogger(__name__)
 
@@ -22,18 +21,15 @@ pylogger = logging.getLogger(__name__)
 class GSMDataModule(GraphTransferDataModule):
     def __init__(
         self,
-        dataset_name,
+        dataset_name: str,
+        data_dir: str,
         feature_params: Dict,
-        data_dir,
         classes_split_path: Optional[str],
-        query_support_split_path,
-        separated_query_support: bool,
-        support_ratio,
-        test_episode_hparams: EpisodeHParams,
-        num_test_episodes,
-        train_ratio,
-        num_workers: DictConfig,
+        episode_hparams: DictConfig,
+        train_ratio: float,
+        num_episodes_per_epoch: DictConfig,
         batch_size: DictConfig,
+        num_workers: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
         spectral_prototypes_path: str,
         num_clusters: Dict,
@@ -44,17 +40,12 @@ class GSMDataModule(GraphTransferDataModule):
             feature_params=feature_params,
             data_dir=data_dir,
             classes_split_path=classes_split_path,
-            query_support_split_path=query_support_split_path,
-            separated_query_support=separated_query_support,
-            support_ratio=support_ratio,
             train_ratio=train_ratio,
-            num_test_episodes=num_test_episodes,
-            test_episode_hparams=test_episode_hparams,
+            num_episodes_per_epoch=num_episodes_per_epoch,
+            episode_hparams=episode_hparams,
             num_workers=num_workers,
             batch_size=batch_size,
             gpus=gpus,
-            add_artificial_nodes=False,
-            artificial_node_features=None,
         )
 
         self.num_clusters = num_clusters

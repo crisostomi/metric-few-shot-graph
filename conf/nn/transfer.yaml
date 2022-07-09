@@ -1,10 +1,10 @@
 defaults:
   - _self_
-  - data: gsm
+  - data: r52
   - model: transfer_learning
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule
+  _target_: fs_grl.data.datamodule.transfer_datamodule.GraphTransferDataModule
 
   dataset_name: ???
   feature_params:

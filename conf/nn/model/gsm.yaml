@@ -1,5 +1,5 @@
 source:
-  _target_: fs_grl.pl_modules.gsm_source.GraphSpectralMeasuresSource
+  _target_: fs_grl.custom_pipelines.gsm.gsm_source.GraphSpectralMeasuresSource
 
   optimizer:
     _target_: torch.optim.Adam
@@ -12,7 +12,7 @@ source:
     gamma: 0.01
 
   embedder:
-    _target_: fs_grl.modules.architectures.graph_spectral_measures.GraphSpectralMeasures
+    _target_: fs_grl.custom_pipelines.gsm.graph_spectral_measures.GraphSpectralMeasures
     feature_dim: ??
     hidden_dim: 128
     output_dim: ??
@@ -34,7 +34,7 @@ source:
 
 target:
 
-  _target_: fs_grl.pl_modules.gsm_target.GraphSpectralMeasuresTarget
+  _target_: fs_grl.custom_pipelines.gsm.gsm_target.GraphSpectralMeasuresTarget
 
   initial_state_path: ${core.storage_dir}/pretrained.ckpt
 

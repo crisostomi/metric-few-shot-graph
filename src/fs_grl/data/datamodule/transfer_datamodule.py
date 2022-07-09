@@ -6,11 +6,10 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch_geometric.data import Batch, Data
 
-from fs_grl.data.dataloader import EpisodicDataLoader
 from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
+from fs_grl.data.dataset.dataloader import EpisodicDataLoader
 from fs_grl.data.dataset.episodic import MapEpisodicDataset
 from fs_grl.data.dataset.vanilla import VanillaGraphDataset
-from fs_grl.data.episode.episode import EpisodeHParams
 from fs_grl.data.utils import random_split_sequence
 
 pylogger = logging.getLogger(__name__)
@@ -23,9 +22,9 @@ class GraphTransferDataModule(GraphFewShotDataModule):
         data_dir: str,
         feature_params: Dict,
         classes_split_path: Optional[str],
-        test_episode_hparams: EpisodeHParams,
-        num_test_episodes: int,
+        episode_hparams: DictConfig,
         train_ratio: float,
+        num_episodes_per_epoch: DictConfig,
         batch_size: DictConfig,
         num_workers: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
@@ -59,8 +58,8 @@ class GraphTransferDataModule(GraphFewShotDataModule):
             feature_params=feature_params,
             classes_split_path=classes_split_path,
             train_ratio=train_ratio,
-            num_test_episodes=num_test_episodes,
-            test_episode_hparams=test_episode_hparams,
+            num_test_episodes=num_episodes_per_epoch.test,
+            test_episode_hparams=episode_hparams.test,
             batch_size=batch_size,
             num_workers=num_workers,
             gpus=gpus,
