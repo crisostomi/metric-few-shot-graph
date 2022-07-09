@@ -17,6 +17,7 @@ from fs_grl.data.io_utils import (
     data_list_to_graph_list,
     get_classes_to_label_dict,
     graph_list_to_data_list,
+    load_csv_data,
     load_graph_list,
     load_pickle_data,
     map_classes_to_labels,
@@ -137,6 +138,16 @@ class GraphFewShotDataModule(pl.LightningDataModule, ABC):
             graph_list: List[nx.Graph] = data_list_to_graph_list(data_list)
 
             class_to_label_dict = {str(cls): cls for classes in classes_split.values() for cls in classes}
+
+        elif dataset_name in {"Tox21"}:  # , "SIDER"
+            classes_split = self.get_classes_split()
+
+            data_list = load_csv_data(data_dir=data_dir, dataset_name=dataset_name, feature_params=feature_params)
+
+            graph_list: List[nx.Graph] = data_list_to_graph_list(data_list)
+
+            classes = [cls for classes in classes_split.values() for cls in classes]
+            class_to_label_dict = {cls: ind for ind, cls in enumerate(classes)}
 
         else:
             raise NotImplementedError

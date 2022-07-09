@@ -1,5 +1,6 @@
 import os
 import pickle
+import re
 from typing import Dict, List
 
 import networkx as nx
@@ -9,7 +10,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 from torch_geometric.data import Data
-from torch_geometric.utils import to_networkx
+from torch_geometric.utils import from_smiles, to_networkx
 
 
 class Node:
@@ -404,7 +405,7 @@ def data_list_to_graph_list(data_list: List[Data]) -> List[nx.Graph]:
     for data_ind, data in enumerate(data_list):
 
         graph = to_networkx(data, to_undirected=True)
-        graph.graph["class"] = data.y.item()
+        graph.graph["class"] = data.y.item() if len(data.y.shape) == 1 else data.y.tolist()
         graph.graph["dataset_index"] = data_ind
         graph_list.append(graph)
 
@@ -574,3 +575,48 @@ def load_pickle(file_name):
 def map_classes_to_labels(graph_list: List[nx.Graph], class_to_label_dict: Dict[str, int]):
     for graph in graph_list:
         graph.graph["class"] = class_to_label_dict[graph.graph["class"]]
+
+
+def load_csv_data(data_dir, dataset_name, feature_params):
+    with open(os.path.join(data_dir, f"{dataset_name}.csv"), "r") as f:
+        dataset = f.read().split("\n")[1:-1]
+        dataset = [x for x in dataset if len(x) > 0]  # Filter empty lines.
+
+    data_list = []
+    for line in dataset:
+        line = re.sub(r"\".*\"", "", line)  # Replace ".*" strings.
+        line = line.split(",")
+
+        # last column in the csv file corresponds to the SMILES format
+        smiles = line[-1]
+
+        # first 12 columns of the csv file correspond to the properties
+        ys = line[slice(0, 12)]
+        ys = ys if isinstance(ys, list) else [ys]
+
+        ys = [float(y) if len(y) > 0 else float("NaN") for y in ys]
+        y = torch.tensor(ys, dtype=torch.float).view(1, -1)
+
+        data = from_smiles(smiles)
+
+        G = create_networkx_graph(data.num_nodes, data.edge_index.t())
+
+        node_features = data.x
+        if "num_cycles" in feature_params["features_to_consider"]:
+            num_cycles = get_num_cycles_from_nx(G, max_considered_cycle_len=feature_params["max_considered_cycle_len"])
+            node_features = torch.cat((node_features, num_cycles.t()), dim=1)
+
+        if "pos_enc" in feature_params["features_to_consider"]:
+            pos_enc = get_positional_encoding_from_nx(G, num_features=feature_params["num_pos_encs"])
+            node_features = torch.cat((node_features, pos_enc), dim=1)
+
+        data = Data(
+            x=node_features,
+            edge_index=data.edge_index,
+            num_nodes=data.num_nodes,
+            y=y,
+        )
+
+        data_list.append(data)
+
+    return data_list
