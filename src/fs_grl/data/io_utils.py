@@ -1,6 +1,7 @@
 import os
 import pickle
 import re
+from copy import deepcopy
 from typing import Dict, List
 
 import networkx as nx
@@ -10,7 +11,9 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 from torch_geometric.data import Data
-from torch_geometric.utils import from_smiles, to_networkx
+from torch_geometric.utils import to_networkx
+
+from fs_grl.data.smiles_utils import from_smiles
 
 
 class Node:
@@ -469,69 +472,6 @@ def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregato
     return data_list
 
 
-# def graph_dict_to_data_list(graph_set, node_attrs, feature_params, add_aggregator_nodes, artificial_node_features):
-#     data_list = []
-#
-#     max_num_cycles_length_k = {k: 0 for k in range(2, feature_params["max_considered_cycle_len"] + 1)}
-#
-#     for cls, graph_indices in graph_set["label2graphs"].items():
-#
-#         for graph_idx in graph_indices:
-#
-#             nodes_global_to_local_map = {
-#                 global_idx: local_idx for local_idx, global_idx in enumerate(graph_set["graph2nodes"][graph_idx])
-#             }
-#             edge_indices = torch.tensor(graph_set["graph2edges"][graph_idx], dtype=torch.long)
-#             edge_indices.apply_(lambda val: nodes_global_to_local_map.get(val))
-#
-#             num_nodes = len(nodes_global_to_local_map)
-#
-#             edge_index = edge_indices.t().contiguous()
-#
-#             G = create_networkx_graph(num_nodes, edge_indices)
-#
-#             node_features = get_node_features(
-#                 graph_set=graph_set,
-#                 node_attrs=node_attrs,
-#                 graph_idx=graph_idx,
-#                 add_aggregator_nodes=add_aggregator_nodes,
-#                 artificial_node_features=artificial_node_features,
-#             )
-#             assert node_features.size(0) == num_nodes
-#
-#             # TODO: remove
-#             feature_dim = node_features.size(1)
-#
-#             if "num_cycles" in feature_params["features_to_consider"]:
-#                 num_cycles = get_num_cycles_from_nx(
-#                     G,
-#                     max_considered_cycle_len=feature_params["max_considered_cycle_len"],
-#                     max_num_cycles_length_k=max_num_cycles_length_k,
-#                 )
-#                 node_features = torch.cat((node_features, num_cycles.t()), dim=1)
-#
-#             if "pos_enc" in feature_params["features_to_consider"]:
-#                 pos_enc = get_positional_encoding_from_nx(G, num_features=feature_params["num_pos_encs"])
-#                 node_features = torch.cat((node_features, pos_enc), dim=1)
-#
-#             data = Data(
-#                 x=node_features,
-#                 edge_index=edge_index,
-#                 num_nodes=num_nodes,
-#                 y=torch.tensor(cls, dtype=torch.long),
-#             )
-#
-#             data_list.append(data)
-#
-#     K = feature_params["max_considered_cycle_len"]
-#     for data in data_list:
-#
-#         for ind, k in enumerate(range(2, K + 1)):
-#             data.x[:, ind + feature_dim] = data.x[:, ind + feature_dim] / max_num_cycles_length_k[k]
-#
-#     return data_list
-
-
 def create_networkx_graph(num_nodes, edge_indices):
     G = nx.Graph()
     G.add_nodes_from(range(num_nodes))
@@ -577,15 +517,17 @@ def map_classes_to_labels(graph_list: List[nx.Graph], class_to_label_dict: Dict[
         graph.graph["class"] = class_to_label_dict[graph.graph["class"]]
 
 
-def load_csv_data(data_dir, dataset_name, feature_params):
-    with open(os.path.join(data_dir, f"{dataset_name}.csv"), "r") as f:
+def load_csv_data(data_dir: str, dataset_name: str, feature_params: Dict) -> List[Data]:
+    with open(os.path.join(data_dir, f"{dataset_name}.tsv"), "r") as f:
+        # remove header and last newline
         dataset = f.read().split("\n")[1:-1]
-        dataset = [x for x in dataset if len(x) > 0]  # Filter empty lines.
+        # remove empty lines, if any
+        dataset = [x for x in dataset if len(x) > 0]
 
     data_list = []
     for line in dataset:
-        line = re.sub(r"\".*\"", "", line)  # Replace ".*" strings.
-        line = line.split(",")
+        line = re.sub(r"\".*\"", "", line)  # Replace ".*" strings. (??)
+        line = line.split("\t")
 
         # last column in the csv file corresponds to the SMILES format
         smiles = line[-1]
@@ -601,7 +543,7 @@ def load_csv_data(data_dir, dataset_name, feature_params):
 
         G = create_networkx_graph(data.num_nodes, data.edge_index.t())
 
-        node_features = data.x
+        node_features = deepcopy(data.x)
         if "num_cycles" in feature_params["features_to_consider"]:
             num_cycles = get_num_cycles_from_nx(G, max_considered_cycle_len=feature_params["max_considered_cycle_len"])
             node_features = torch.cat((node_features, num_cycles.t()), dim=1)
