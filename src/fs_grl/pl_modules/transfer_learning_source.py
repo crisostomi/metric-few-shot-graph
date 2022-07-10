@@ -20,7 +20,7 @@ class TransferLearningSource(BaseModule):
 
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
-        self.classes = self.metadata.classes_split["base"]
+        self.classes = self.metadata.properties_split["base"]
 
         self.embedder = None
         self.classifier = None

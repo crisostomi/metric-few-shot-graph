@@ -4,17 +4,17 @@ episode_hparams:
   train:
     _target_: fs_grl.data.episode.episode.EpisodeHParams
     num_queries_per_class: 15
-    num_classes_per_episode: 3
+    num_classes_per_episode: 2
     num_supports_per_class: 10
 
   val:
     _target_: fs_grl.data.episode.episode.EpisodeHParams
     num_queries_per_class: 10
-    num_classes_per_episode: 3
+    num_classes_per_episode: 2
     num_supports_per_class: 10
 
   test:
     _target_: fs_grl.data.episode.episode.EpisodeHParams
     num_queries_per_class: 15
-    num_classes_per_episode: 3
+    num_classes_per_episode: 2
     num_supports_per_class: 10

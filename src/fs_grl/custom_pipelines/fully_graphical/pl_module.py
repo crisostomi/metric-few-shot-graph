@@ -188,7 +188,7 @@ class FullyGraphical(BaseModule):
         pred_labels = torch.argmax(similarities_per_label, dim=-1)
 
         pred_global_labels = self.map_pred_labels_to_global(
-            pred_labels=pred_labels, batch_global_labels=batch.global_labels, num_episodes=batch.num_episodes
+            pred_labels=pred_labels, batch_global_labels=batch.properties, num_episodes=batch.num_episodes
         )
 
         return pred_global_labels

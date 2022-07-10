@@ -543,7 +543,7 @@ def load_csv_data(data_dir: str, dataset_name: str, feature_params: Dict) -> Lis
 
         G = create_networkx_graph(data.num_nodes, data.edge_index.t())
 
-        node_features = deepcopy(data.x)
+        node_features = deepcopy(data.x).float()
         if "num_cycles" in feature_params["features_to_consider"]:
             num_cycles = get_num_cycles_from_nx(G, max_considered_cycle_len=feature_params["max_considered_cycle_len"])
             node_features = torch.cat((node_features, num_cycles.t()), dim=1)

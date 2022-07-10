@@ -6,7 +6,9 @@
         "NR-Aromatase",
         "NR-ER",
         "NR-ER-LBD",
-        "NR-PPAR-gamma",
+        "NR-PPAR-gamma"
+    ],
+    "val": [
         "SR-ARE",
         "SR-ATAD5"
     ],

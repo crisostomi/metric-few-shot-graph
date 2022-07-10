@@ -58,7 +58,7 @@ class FullyGraphicalEpisodeBatch(EpisodeBatch):
         # B * N * Q
         queries: List[Data] = flatten([episode.queries for episode in episode_list])
         # B * N
-        global_labels: List[int] = flatten([episode.global_labels for episode in episode_list])
+        global_labels: List[int] = flatten([episode.property for episode in episode_list])
 
         supports_batch: Batch = Batch.from_data_list(supports)
         queries_batch: Batch = Batch.from_data_list(queries)
@@ -237,7 +237,7 @@ class FullyGraphicalEpisodeBatch(EpisodeBatch):
         # N nodes of the last sample, which are also the last N nodes of all the supports in the episode
         # first label obtains cumulative_node_count-1, the second cumulative_node_count-2 and so on
         episode_label_to_prot = {
-            global_label: cumulative_node_count - (ind + 1) for ind, global_label in enumerate(episode.global_labels)
+            global_label: cumulative_node_count - (ind + 1) for ind, global_label in enumerate(episode.property)
         }
 
         return episode_label_to_prot

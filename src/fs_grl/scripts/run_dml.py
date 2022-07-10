@@ -90,9 +90,7 @@ def run(cfg: DictConfig) -> str:
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     pylogger.info(f"Instantiating <{cfg.nn.model['_target_']}>")
-    model: pl.LightningModule = hydra.utils.instantiate(
-        cfg.nn.model, _recursive_=False, train_data_list_by_label=datamodule.data_list_by_base_label, metadata=metadata
-    )
+    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.model, _recursive_=False, metadata=metadata)
 
     callbacks: List[Callback] = build_callbacks(cfg.train["callbacks"], template_core)
 

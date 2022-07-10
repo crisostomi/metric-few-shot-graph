@@ -52,7 +52,7 @@ class Episode:
 
         self.episode_hparams = episode_hparams
 
-        self.global_labels = global_labels
+        self.property = global_labels
         self.supports = Episode.add_local_labels(supports)
         self.queries = Episode.add_local_labels(queries)
 
@@ -86,3 +86,27 @@ class Episode:
             new_samples.append(new_sample)
 
         return new_samples
+
+
+class MolecularEpisode:
+    def __init__(
+        self,
+        supports: List[Data],
+        queries: List[Data],
+        property: int,
+        episode_hparams: EpisodeHParams,
+    ):
+        """
+        N classes, K samples each, Q queries each
+
+        :param supports: shape (N*K), contains K support samples for each class
+        :param queries: shape (N*Q), contains Q queries for each class
+        :param property: property sampled from the stage properties for the episode
+        :param episode_hparams: N, K and Q
+        """
+
+        self.episode_hparams = episode_hparams
+
+        self.property = property
+        self.supports = Episode.add_local_labels(supports)
+        self.queries = Episode.add_local_labels(queries)
