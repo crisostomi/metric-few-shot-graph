@@ -241,6 +241,7 @@ class MolecularEpisodeBatch:
         supports: Batch,
         queries: Batch,
         properties: torch.Tensor,
+        global_labels: torch.Tensor,
         episode_hparams: EpisodeHParams,
         num_episodes: int,
     ):
@@ -259,6 +260,7 @@ class MolecularEpisodeBatch:
         self.supports = supports
         self.queries = queries
         self.properties = properties
+        self.global_labels = global_labels
 
         self.num_samples_per_episode = {
             SampleType.QUERY: self.episode_hparams.num_queries_per_class * 2,
@@ -281,17 +283,22 @@ class MolecularEpisodeBatch:
         supports: List[Data] = flatten([episode.supports for episode in episode_list])
         # B * 2 * Q
         queries: List[Data] = flatten([episode.queries for episode in episode_list])
-        # B * 2
+        # B
         properties: List[int] = [episode.property for episode in episode_list]
+        # B * 2
+        # build the tensor of the classes active/non-active (0/1) referring to the considered property in the episode
+        global_labels: List[int] = [[0, 1] for _ in episode_list]
 
         supports_batch: Batch = Batch.from_data_list(supports)
         queries_batch: Batch = Batch.from_data_list(queries)
         properties_batch = torch.tensor(properties)
+        global_labels = torch.tensor(global_labels)
 
         return {
             "supports": supports_batch,
             "queries": queries_batch,
             "properties": properties_batch,
+            "global_labels": global_labels,
             "episode_hparams": episode_hparams,
             "num_episodes": len(episode_list),
         }
@@ -344,6 +351,38 @@ class MolecularEpisodeBatch:
         ]
 
         return samples_by_episode
+
+    def get_global_labels_by_episode(self) -> torch.Tensor:
+        """
+        Split global labels tensor ~ (B*N) by episode
+
+        :return: tensor (BxN)
+        """
+
+        global_labels_by_episode = self.global_labels.view(
+            (self.num_episodes, self.episode_hparams.num_classes_per_episode)
+        )
+        return global_labels_by_episode
+
+    def get_support_labels_by_episode(self) -> torch.Tensor:
+        """
+        Split support labels tensor ~ (B*N*K) by episode
+
+        :return: tensor (B, N*K)
+        """
+        support_labels_by_episode = self.supports.y.view(
+            (self.num_episodes, self.episode_hparams.num_supports_per_episode)
+        )
+        return support_labels_by_episode
+
+    def get_query_labels_by_episode(self) -> torch.Tensor:
+        """
+        Split query labels tensor ~ (B*N*Q) by episode
+
+        :return: tensor (B, N*Q)
+        """
+        query_labels_by_episode = self.queries.y.view((self.num_episodes, self.episode_hparams.num_queries_per_episode))
+        return query_labels_by_episode
 
     def to(self, device):
         self.supports = self.supports.to(device)
