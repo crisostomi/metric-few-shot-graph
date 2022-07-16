@@ -3,7 +3,7 @@ from typing import Dict
 import numpy as np
 import torch
 
-from fs_grl.data.episode.episode_batch import EpisodeBatch
+from fs_grl.data.episode.episode_batch import EpisodeBatch, MolecularEpisodeBatch
 
 
 class MixUpAugmentor:
@@ -169,3 +169,45 @@ class MixUpAugmentor:
         query_embedding = query_embeddings[indices[0]]
 
         return query_embedding
+
+
+class MolecularMixUpAugmentor(MixUpAugmentor):
+    def __init__(self, model):
+        super().__init__(model)
+
+    def compute_latent_mixup_reg(self, model_out: Dict, batch: MolecularEpisodeBatch):
+        """
+        Computes the regularizer term for the artificial samples created as cross-over of samples
+        from different classes
+
+        :param model_out:
+        :param batch:
+        :return
+        """
+
+        query_embeddings = model_out["embedded_queries"]
+
+        global_labels_by_episode = batch.get_active_or_not_labels_by_episode()
+        query_labels_by_episode = batch.get_query_labels_by_episode()
+
+        query_embeddings_by_episode = query_embeddings.split(
+            tuple([batch.episode_hparams.num_queries_per_episode] * batch.num_episodes)
+        )
+
+        regularizer_term = 0
+        for episode in range(batch.num_episodes):
+            episode_prototypes = model_out["prototypes_dicts"][episode]
+            episode_global_label_pairs = self.get_global_label_pairs(global_labels_by_episode[episode])
+            episode_query_embeddings = query_embeddings_by_episode[episode]
+            episode_query_labels = query_labels_by_episode[episode]
+
+            episode_regularizer_term = self.compute_episode_crossover_regularizer(
+                episode_prototypes,
+                episode_global_label_pairs,
+                episode_query_embeddings,
+                episode_query_labels,
+                batch,
+            )
+            regularizer_term += episode_regularizer_term
+
+        return regularizer_term / batch.num_episodes

@@ -6,7 +6,7 @@ from torch import nn
 from torch_geometric.data import Batch
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.components.mixup_augmentor import MixUpAugmentor
+from fs_grl.modules.components.mixup_augmentor import MixUpAugmentor, MolecularMixUpAugmentor
 
 
 class PrototypeBased(abc.ABC, nn.Module):
@@ -205,3 +205,39 @@ class PrototypeBased(abc.ABC, nn.Module):
     @abc.abstractmethod
     def compute_classification_loss(self, embedded_queries, class_prototypes, batch: EpisodeBatch, **kwargs):
         pass
+
+
+class MolecularPrototypeBased(PrototypeBased):
+    def __init__(self, loss_weights):
+        super().__init__(loss_weights)
+        self.mixup_augmentor = MolecularMixUpAugmentor(self)
+
+    @staticmethod
+    def map_pred_labels_to_active_or_not(pred_labels, batch_active_or_not_labels, num_episodes):
+        """
+
+        :param pred_labels: (B*N*Q)
+        :param batch_active_or_not_labels: (B*N)
+        :param num_episodes: number of episodes in the batch
+
+        :return
+        """
+        global_labels_per_episode = batch_active_or_not_labels.reshape(num_episodes, -1)
+        pred_labels = pred_labels.reshape(num_episodes, -1)
+
+        mapped_labels = []
+        for episode_num in range(num_episodes):
+
+            # shape (N)
+            episode_global_labels = global_labels_per_episode[episode_num]
+            # shape (N*Q)
+            episode_pred_labels = pred_labels[episode_num]
+            # shape (N*Q)
+            episode_mapped_labels = episode_global_labels[episode_pred_labels]
+
+            mapped_labels.append(episode_mapped_labels)
+
+        # shape (B*N*Q)
+        mapped_labels = torch.cat(mapped_labels, dim=0)
+
+        return mapped_labels
