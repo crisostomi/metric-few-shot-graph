@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+
+_target_: fs_grl.custom_pipelines.as_maml.as_maml.AS_MAML
+num_inner_steps: 6
+
+outer_optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+  weight_decay: 1e-5
+
+# verify or add gradient clipping
+# verify how can nll loss work
+
+inner_optimizer:
+  _target_: torch.optim.SGD
+  lr: 0.01
+
+use_lr_scheduler: True
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  mode: min
+  factor: 0.2
+  patience: 35
+  verbose: True
+  min_lr: 1e-6
+
+model:
+  _target_: fs_grl.custom_pipelines.as_maml.graph_embedder.GraphEmbedder
+  pooling_ratio: 0.5
+  dropout_ratio: 0.3
+  hidden_dim: 128
+  feature_dim: ???

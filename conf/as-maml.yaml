@@ -1,0 +1,14 @@
+core:
+  project_name: fs-grl
+  storage_dir: ${oc.env:PROJECT_ROOT}/storage
+  version: 0.0.1
+  tags:
+    - as-maml
+
+defaults:
+  - hydra: default
+  - nn: as-maml
+  - train: as-maml
+  - _self_ # as last argument to allow the override of parameters via this main config
+#    Decomment this parameter to get parallel job running
+#  - hydra/launcher: joblib
