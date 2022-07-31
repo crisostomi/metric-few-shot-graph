@@ -5,7 +5,7 @@ from typing import Any, Mapping, Optional
 import torch
 from hydra.utils import instantiate
 from torch import nn
-from torchmetrics import Accuracy, FBetaScore
+from torchmetrics import AUROC, Accuracy, FBetaScore
 
 from nn_core.model_logging import NNLogger
 
@@ -50,7 +50,7 @@ class FullyGraphical(BaseModule):
         self.artificial_regularizer_weight = artificial_regularizer_weight
 
         reductions = ["micro", "weighted", "macro", "none"]
-        metrics = (("F1", FBetaScore), ("acc", Accuracy))
+        metrics = (("F1", FBetaScore), ("acc", Accuracy), ("AUROC", AUROC))
         self.val_metrics = nn.ModuleDict(
             {
                 f"val/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
