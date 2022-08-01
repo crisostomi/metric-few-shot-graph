@@ -51,6 +51,7 @@ class AS_MAML(MetaLearningModel):
         self.outer_lr = 0.001
         self.inner_lr = 0.01
         self.weight_decay = 1e-5
+        self.index = 0
 
         stop_input_size = 0
         if self.use_score:
@@ -80,11 +81,6 @@ class AS_MAML(MetaLearningModel):
         raise NotImplementedError
 
     def step(self, metatrain: bool, batch: EpisodeBatch):
-
-        self.gnn_mlp.zero_grad()
-        self.stop_gate.zero_grad()
-
-        outer_optimizer = self.optimizers()
 
         outer_loss = torch.tensor(0.0)
         inner_loss = torch.tensor(0.0)
@@ -162,12 +158,17 @@ class AS_MAML(MetaLearningModel):
         self.log("final_query_acc", final_query_acc)
         self.log("final_query_loss", final_query_loss)
         self.log("outer_loss", outer_loss)
-        outer_loss = (outer_loss + final_query_acc + final_query_loss) / batch.num_episodes
+        outer_loss = outer_loss + final_query_acc + final_query_loss
+        self.manual_backward(outer_loss)
 
-        if metatrain:
-            self.manual_backward(outer_loss)
+        if metatrain and self.index == 5:
             torch.nn.utils.clip_grad_norm_(self.gnn_mlp.parameters(), self.grad_clip_value)
-            outer_optimizer.step()
+            self.optimizers().optimizer.step()
+            self.optimizers().optimizer.zero_grad()
+            self.stop_gate.zero_grad()
+            self.index = 0
+        else:
+            self.index += 1
 
         self.log("adaptation_steps", np.array(adaptation_steps).mean())
         self.log("stop_gates", np.array([stop_gate.item() for stop_gate in stop_gates]).mean())
