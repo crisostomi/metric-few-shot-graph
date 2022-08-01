@@ -5,10 +5,9 @@ trainer:
   fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 100
+  max_epochs: 500
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
-#  gradient_clip_val: 5.0
   val_check_interval: 1.0
   log_every_n_steps: 1
   deterministic: ${train.deterministic}
@@ -23,7 +22,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 5
+    patience: 50
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}

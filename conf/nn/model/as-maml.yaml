@@ -9,7 +9,6 @@ outer_optimizer:
   lr: 0.001
   weight_decay: 1e-5
 
-# verify or add gradient clipping
 # verify how can nll loss work
 
 inner_optimizer:
@@ -20,10 +19,10 @@ use_lr_scheduler: True
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
   mode: min
-  factor: 0.2
+  factor: 0.5
   patience: 35
   verbose: True
-  min_lr: 1e-6
+  min_lr: 1e-5
 
 model:
   _target_: fs_grl.custom_pipelines.as_maml.graph_embedder.GraphEmbedder

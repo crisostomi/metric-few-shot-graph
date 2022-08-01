@@ -4,6 +4,7 @@ core:
   version: 0.0.1
   tags:
     - as-maml
+    - definitive
 
 defaults:
   - hydra: default
