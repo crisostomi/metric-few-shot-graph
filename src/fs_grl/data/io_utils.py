@@ -404,6 +404,11 @@ def data_list_to_graph_list(data_list: List[Data]) -> List[nx.Graph]:
     for data_ind, data in enumerate(data_list):
 
         graph = to_networkx(data, to_undirected=True)
+        attrs = {
+            node_idx: tuple(node_attrs.tolist()) if len(node_attrs.tolist()) > 1 else node_attrs.item()
+            for node_idx, node_attrs in enumerate(data.x)
+        }
+        nx.set_node_attributes(graph, attrs, "attributes")
         graph.graph["class"] = data.y.item()
         graph.graph["dataset_index"] = data_ind
         graph_list.append(graph)

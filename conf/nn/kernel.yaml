@@ -5,9 +5,24 @@ defaults:
 data:
 
   dataset_name: ???
+  feature_params:
+    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
+      - degree
+      - tags
 
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
 
   num_episodes_per_epoch:
     test: 1000
+
+kernels:
+  - _target_: grakel.kernels.WeisfeilerLehman
+    n_iter: 5
+    normalize: True
+
+  # - _target_: grakel.kernels.ShortestPath
+  #   normalize: True
+
+  # - _target_: grakel.kernels.GraphletSampling
+  #   normalize: True

@@ -5,7 +5,6 @@ from typing import Dict
 import hydra
 import numpy as np
 import omegaconf
-from grakel.kernels import VertexHistogram, WeisfeilerLehman
 from omegaconf import DictConfig, OmegaConf, open_dict
 from sklearn.metrics import accuracy_score
 from sklearn.svm import SVC
@@ -86,9 +85,6 @@ def run(cfg: DictConfig) -> str:
 
     G_train, y_train, episodes_test = fetch_dataset(cfg.nn.data)
 
-    # wl_kernel = WeisfeilerLehman(n_iter=5, normalize=True, base_graph_kernel=VertexHistogram)
-    # K_train = wl_kernel.fit_transform(G_train, y_train)
-
     accs = []
     for G_test in tqdm(episodes_test):
         supports, y_supports, queries, y_queries = (
@@ -97,19 +93,20 @@ def run(cfg: DictConfig) -> str:
             G_test["queries"],
             G_test["y_queries"],
         )
-        kernel = WeisfeilerLehman(n_iter=5, normalize=True, base_graph_kernel=VertexHistogram)
+        for cfg_kernel in cfg.nn.kernels:
+            kernel_name = cfg_kernel["_target_"].split(".")[-1]
+            kernel = hydra.utils.instantiate(cfg_kernel, _recursive_=False)
+            clf = SVC(kernel="linear")
 
-        clf = SVC(kernel="linear")
+            K_sup = kernel.fit_transform(supports)
+            clf.fit(K_sup, y_supports)
 
-        K_sup = kernel.fit_transform(supports)
-        clf.fit(K_sup, y_supports)
-
-        K_qu = kernel.transform(queries)
-        y_pred = clf.predict(K_qu)
-        acc = round(accuracy_score(y_queries, y_pred) * 100)
-        accs.append(acc)
-        logger.experiment.log({"accuracy": acc})
-    logger.experiment.log({"accuracy_per_epoch": np.array(accs).mean()})
+            K_qu = kernel.transform(queries)
+            y_pred = clf.predict(K_qu)
+            acc = accuracy_score(y_queries, y_pred)
+            accs.append(acc)
+            logger.experiment.log({f"{kernel_name}/accuracy": acc})
+        logger.experiment.log({f"{kernel_name}/accuracy_per_epoch": np.array(accs).mean()})
 
     if logger is not None:
         logger.experiment.finish()
