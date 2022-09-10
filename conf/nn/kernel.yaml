@@ -1,8 +1,10 @@
 defaults:
   - _self_
-  - data: triangles
+  - data: r52
+  - model: graph_kernel
 
 data:
+  _target_: fs_grl.data.datamodule.transfer_datamodule.GraphTransferDataModule
 
   dataset_name: ???
   feature_params:
@@ -10,19 +12,27 @@ data:
       - degree
       - tags
 
+    max_considered_cycle_len: 4
+    num_pos_encs: 1
+
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
 
   num_episodes_per_epoch:
+    train: 2000
+    val: 500
     test: 1000
 
-kernels:
-  - _target_: grakel.kernels.WeisfeilerLehman
-    n_iter: 5
-    normalize: True
+  train_ratio: 0.80
 
-  # - _target_: grakel.kernels.ShortestPath
-  #   normalize: True
+  gpus: ${train.trainer.gpus}
 
-  # - _target_: grakel.kernels.GraphletSampling
-  #   normalize: True
+  num_workers:
+    train: 4
+    val: 4
+    test: 4
+
+  batch_size:
+    train: 32
+    val: 32
+    test: 1

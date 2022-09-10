@@ -4,6 +4,7 @@ core:
   version: 0.0.1
   tags:
     - graph_kernel
+    - Graphlet
 
 defaults:
   - hydra: default
