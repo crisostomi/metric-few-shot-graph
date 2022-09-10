@@ -5,7 +5,7 @@ trainer:
   fast_dev_run: False
   gpus: 1
   precision: 32
-  max_epochs: 100
+  max_epochs: 300
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
   gradient_clip_val: 10.0
@@ -23,7 +23,7 @@ monitor:
 
 callbacks:
   - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 10
+    patience: 50
     verbose: False
     monitor: ${train.monitor.metric}
     mode: ${train.monitor.mode}
@@ -37,6 +37,8 @@ callbacks:
   - _target_: pytorch_lightning.callbacks.LearningRateMonitor
     logging_interval: "step"
     log_momentum: False
+
+  - _target_: fs_grl.callbacks.LogTrainingTimeCallback
 
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20

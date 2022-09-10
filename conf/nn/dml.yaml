@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - data: tox21
+  - data: triangles
   - model: tadam
 
 data:
@@ -8,9 +8,9 @@ data:
 
   dataset_name: ???
   feature_params:
-    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
-      - degree
-      - tags
+    features_to_consider: # possibilities: degree_onehot, tags, num_cycles, pos_enc
+      - degree_onehot
+#      - tags
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
@@ -21,7 +21,7 @@ data:
   num_episodes_per_epoch:
     train: 2000
     val: 500
-    test: 1000
+    test: 5000
 
   train_ratio: 0.80
 

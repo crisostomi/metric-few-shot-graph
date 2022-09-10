@@ -116,6 +116,9 @@ class GraphEmbedder(torch.nn.Module):
 
         graph_emb = x
 
+        # added to avoid features exploding over the Reddit dataset
+        x = torch.nn.functional.normalize(x, p=2, dim=-1)
+
         x = self.relu(self.lin1(x), negative_slope=0.1)
         x = self.relu(self.lin2(x), negative_slope=0.1)
         x = self.lin3(x)

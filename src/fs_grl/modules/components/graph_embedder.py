@@ -13,7 +13,7 @@ class GraphEmbedder(nn.Module):
 
         self.feature_dim = feature_dim
 
-        self.node_embedder = instantiate(cfg.node_embedder, feature_dim=self.feature_dim, _recursive_=True)
+        self.node_embedder = instantiate(cfg.node_embedder, feature_dim=self.feature_dim, _recursive_=False)
 
         self.pooling = instantiate(cfg.pooling)
 

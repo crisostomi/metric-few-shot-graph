@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import List
 
 import hydra
@@ -180,6 +181,14 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
         callbacks.append(hydra.utils.instantiate(callback, _recursive_=False))
 
     return callbacks
+
+
+class LogTrainingTimeCallback(Callback):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def on_train_end(self, trainer: Trainer, pl_module: LightningModule):
+        trainer.logger.experiment.log({"training_time": time.time() - pl_module.train_start_time})
 
 
 def get_checkpoint_callback(callbacks):

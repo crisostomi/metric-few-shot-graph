@@ -1,5 +1,6 @@
 defaults:
   - pooling: mean
+  - conv_type: gin
   - _self_
 
 _target_: fs_grl.pl_modules.maml.MAMLModel
@@ -39,6 +40,7 @@ model:
       jump_mode: cat
       non_linearity:
         _target_: torch.nn.ReLU
+      conv_type: ${nn.model.conv_type}
 
   classifier:
     _target_: fs_grl.modules.components.mlp.MLP

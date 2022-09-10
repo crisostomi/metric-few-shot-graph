@@ -1,11 +1,12 @@
 import torch
-import torch.nn as nn
-from torch_geometric.nn import GINConv, JumpingKnowledge
+import torch.nn
+from hydra.utils import instantiate
+from torch_geometric.nn import JumpingKnowledge
 
 from fs_grl.modules.components.mlp import MLP
 
 
-class NodeEmbedder(nn.Module):
+class NodeEmbedder(torch.nn.Module):
     def __init__(
         self,
         feature_dim,
@@ -17,10 +18,11 @@ class NodeEmbedder(nn.Module):
         num_convs,
         dropout_rate,
         do_preprocess,
+        conv_type,
         conv_norm,
         postproc_mlp_norm,
         jump_mode="cat",
-        non_linearity=nn.ReLU,
+        non_linearity=torch.nn.ReLU,
     ):
         super().__init__()
 
@@ -31,7 +33,7 @@ class NodeEmbedder(nn.Module):
         self.num_gin_mlp_layers = num_gin_mlp_layers
         self.jump_mode = jump_mode
         self.do_preprocess = do_preprocess
-        self.non_linearity = non_linearity
+        self.non_linearity = instantiate(non_linearity)
 
         self.preprocess_mlp = (
             MLP(
@@ -46,22 +48,19 @@ class NodeEmbedder(nn.Module):
             else None
         )
 
-        self.convs = nn.ModuleList()
+        self.convs = torch.nn.ModuleList()
         for conv in range(self.num_convs):
             input_dim = self.feature_dim if (conv == 0 and not self.do_preprocess) else self.hidden_dim
-            conv = GINConv(
-                nn=MLP(
-                    num_layers=num_gin_mlp_layers,
-                    input_dim=input_dim,
-                    output_dim=self.hidden_dim,
-                    hidden_dim=self.hidden_dim,
-                    norm=conv_norm,
-                    non_linearity=self.non_linearity,
-                ),
-            )
+
+            if "nn" in conv_type:
+                nn = instantiate(conv_type.nn, input_dim=input_dim)
+                conv = instantiate(conv_type, _recursive_=False, nn=nn)
+            else:
+                conv = instantiate(conv_type, in_channels=input_dim)
+
             self.convs.append(conv)
 
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
 
         num_layers = (self.num_convs + 1) if self.do_preprocess else self.num_convs
         after_conv_dim = (

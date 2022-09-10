@@ -1,7 +1,7 @@
 
 defaults:
   - _self_
-  - data: r52
+  - data: reddit
   - model: as-maml
 
 data:
@@ -11,7 +11,8 @@ data:
   feature_params:
     features_to_consider:
       - degree
-      - tags
+#      - degree_onehot
+#      - tags
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
@@ -34,6 +35,6 @@ data:
     test: 8
 
   batch_size:
-    train: 1
-    val: 1
+    train: 5
+    val: 5
     test: 1

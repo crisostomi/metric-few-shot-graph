@@ -1,6 +1,7 @@
 defaults:
-  - pooling: mean
   - _self_
+  - pooling: mean
+  - conv_type: gcn
 
 source:
   _target_: fs_grl.pl_modules.simple_source.SimpleSource
@@ -30,6 +31,7 @@ source:
       jump_mode: cat
       non_linearity:
         _target_: torch.nn.ReLU
+      conv_type: ${nn.model.conv_type}
 
   classifier:
     _target_: fs_grl.modules.components.mlp.MLP

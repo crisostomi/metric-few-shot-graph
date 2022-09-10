@@ -3,13 +3,22 @@ defaults:
 
 _target_: fs_grl.custom_pipelines.as_maml.as_maml.AS_MAML
 num_inner_steps: 6
+stop_prob: 0.5
+max_step: 15
+min_step: 5
+num_test_steps: 15
+step_penalty: 0.001
+stop_lr: 0.0001
+outer_lr: 0.001
+inner_lr: 0.01
+weight_decay: 1e-5
+grad_clip_value: 5.0
 
 outer_optimizer:
   _target_: torch.optim.Adam
   lr: 0.001
   weight_decay: 1e-5
 
-# verify how can nll loss work
 
 inner_optimizer:
   _target_: torch.optim.SGD

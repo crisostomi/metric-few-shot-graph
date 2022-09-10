@@ -1,6 +1,7 @@
 import itertools
+import time
 from abc import ABC
-from typing import Any, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 import hydra
 import numpy as np
@@ -8,6 +9,7 @@ import plotly.graph_objects as go
 import pytorch_lightning as pl
 import wandb
 from plotly.graph_objs.layout import Annotation
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.optim import Optimizer
 from torchmetrics import Accuracy, ConfusionMatrix, FBetaScore
@@ -16,6 +18,9 @@ from torchmetrics import Accuracy, ConfusionMatrix, FBetaScore
 class BaseModule(pl.LightningModule, ABC):
     def __init__(self, metadata):
         super().__init__()
+        self.test_start_inference_time = None
+        self.train_start_time = None
+
         self.save_hyperparameters()
         self.metadata = metadata
 
@@ -166,3 +171,14 @@ class BaseModule(pl.LightningModule, ABC):
                 if loss_name != "total"
             ]
         )
+
+    def on_train_start(self) -> None:
+        self.train_start_time = time.time()
+
+    def on_test_batch_start(self, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        self.test_start_inference_time = time.time()
+
+    def on_test_batch_end(
+        self, outputs: Optional[STEP_OUTPUT], batch: Any, batch_idx: int, dataloader_idx: int
+    ) -> None:
+        self.log("inference_time", time.time() - self.test_start_inference_time, on_epoch=True, on_step=False)

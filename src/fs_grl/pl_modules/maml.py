@@ -63,9 +63,13 @@ class MAMLModel(MetaLearningModel):
             episode_queries = Batch.from_data_list(episode_queries)
 
             track_higher_grads = True if metatrain else False
+            copy_initial_weights = False if metatrain else True
 
             with higher.innerloop_ctx(
-                self.gnn_mlp, self.inner_optimizer, copy_initial_weights=False, track_higher_grads=track_higher_grads
+                self.gnn_mlp,
+                self.inner_optimizer,
+                copy_initial_weights=copy_initial_weights,
+                track_higher_grads=track_higher_grads,
             ) as (fmodel, diffopt):
 
                 for k in range(self.num_inner_steps):
@@ -80,8 +84,9 @@ class MAMLModel(MetaLearningModel):
                     inner_accuracy.update(train_preds, episode_supports.local_y)
 
                 test_logits = fmodel(episode_queries)
-                outer_loss += self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
+                inner_test_loss = self.outer_loss_func(test_logits, episode_queries.local_y).cpu()
 
+                outer_loss += inner_test_loss
                 with torch.no_grad():
                     test_preds = torch.softmax(test_logits, dim=-1)
                     outer_accuracy.update(test_preds, episode_queries.local_y)

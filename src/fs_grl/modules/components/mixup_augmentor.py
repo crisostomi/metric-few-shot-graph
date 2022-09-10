@@ -90,6 +90,7 @@ class MixUpAugmentor:
         """
 
         gating_vector = self.construct_macro_features_gating_vector(alpha)
+        # gating_vector = self.construct_gating_vector(alpha)
 
         crossover = gating_vector * sample_a + (1 - gating_vector) * sample_b
 

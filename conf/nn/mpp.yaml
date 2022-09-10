@@ -8,8 +8,8 @@ data:
 
   dataset_name: ???
   feature_params:
-    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
-      - degree
+    features_to_consider: # possibilities: degree_onehot, tags, num_cycles, pos_enc
+      - degree_onehot
       - tags
 
     max_considered_cycle_len: 4

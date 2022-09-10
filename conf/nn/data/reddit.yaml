@@ -19,10 +19,9 @@ episode_hparams:
     num_classes_per_episode: 4
     num_supports_per_class: 10
 
-#batch_size:
-#  train: 8
-#  val: 4
-
+batch_size:
+  train: 8
+  val: 4
 
 num_train_episodes: 500
 num_val_episodes: 500

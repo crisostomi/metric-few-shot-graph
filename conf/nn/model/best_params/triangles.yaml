@@ -1,3 +1,8 @@
+defaults:
+  - _self_
+  - pooling: mean
+  - conv_type: gin
+
 _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
@@ -23,8 +28,7 @@ model:
 
   embedder:
     _target_: fs_grl.modules.components.graph_embedder.GraphEmbedder
-    pooling:
-      _target_: fs_grl.modules.pooling.mean.GlobalMeanPool
+    pooling: ${nn.model.pooling}
     feature_dim: ???
 
     node_embedder:
@@ -43,3 +47,4 @@ model:
       jump_mode: cat
       non_linearity:
         _target_: torch.nn.ReLU
+      conv_type: ${nn.model.conv_type}

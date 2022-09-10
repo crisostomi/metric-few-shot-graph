@@ -258,10 +258,14 @@ def set_node_features(
         one_hot_tags = get_one_hot_attrs(all_tags, data_list)
         all_node_features = initialize_or_concatenate(all_node_features, one_hot_tags)
 
-    if "degree" in feature_params["features_to_consider"]:
+    if "degree_onehot" in feature_params["features_to_consider"]:
         all_degrees = torch.cat([data.degrees for data in data_list], 0)
         one_hot_degrees = get_one_hot_attrs(all_degrees, data_list)
         all_node_features = initialize_or_concatenate(all_node_features, one_hot_degrees)
+
+    if "degree" in feature_params["features_to_consider"]:
+        degrees = [data.degrees.unsqueeze(1).float() for data in data_list]
+        all_node_features = initialize_or_concatenate(all_node_features, degrees)
 
     if "pos_enc" in feature_params["features_to_consider"]:
         for k in range(feature_params["num_pos_encs"]):

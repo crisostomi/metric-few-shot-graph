@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Dict, List
 
 import hydra
@@ -11,10 +12,11 @@ from nn_core.callbacks import NNTemplateCore
 from nn_core.common import PROJECT_ROOT
 from nn_core.common.utils import enforce_tags, seed_index_everything
 from nn_core.model_logging import NNLogger
-from nn_core.serialization import NNCheckpointIO
+from nn_core.serialization import NNCheckpointIO, load_model
 
 import fs_grl  # noqa
-from fs_grl.callbacks import build_callbacks
+from fs_grl.callbacks import build_callbacks, get_checkpoint_callback
+from fs_grl.custom_pipelines.as_maml.as_maml import AS_MAML
 from fs_grl.utils import handle_fast_dev_run
 
 # Force the execution of __init__.py if this file is executed directly.
@@ -65,6 +67,9 @@ def run(cfg: DictConfig) -> str:
 
     pylogger.info("Starting meta-training!")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
+
+    best_model_path = get_checkpoint_callback(callbacks).best_model_path
+    model = load_model(AS_MAML, checkpoint_path=Path(best_model_path + ".zip"))
 
     hydra.utils.log.info("Starting testing!")
     trainer.test(model=model, datamodule=datamodule)

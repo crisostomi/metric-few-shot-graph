@@ -8,6 +8,7 @@ from nn_core.model_logging import NNLogger
 
 from fs_grl.data.datamodule.metadata import MetaData
 from fs_grl.data.episode.episode_batch import EpisodeBatch
+from fs_grl.modules.architectures.tadam import TADAM
 from fs_grl.pl_modules.base_module import BaseModule
 from fs_grl.pl_modules.utils import log_tsne_plot, prototypes_dict_to_tensor
 
@@ -86,6 +87,11 @@ class DistanceMetricLearning(BaseModule):
         for metric_name, metric in self.train_metrics.items():
             metric_res = metric(preds=predictions, target=batch.queries.y)
             self.log(name=metric_name, value=metric_res, on_step=True, on_epoch=True)
+
+        if isinstance(self.model, TADAM):
+            for conv_ind, conv in enumerate(self.model.embedder.node_embedder.convs):
+                self.log(f"TAE_multipliers/gamma_0_{conv_ind}", self.model.task_embedding_network.gamma_0[conv_ind])
+                self.log(f"TAE_multipliers/beta_0_{conv_ind}", self.model.task_embedding_network.beta_0[conv_ind])
 
         return step_out
 

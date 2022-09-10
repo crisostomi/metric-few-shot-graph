@@ -9,7 +9,7 @@ data:
   dataset_name: ???
   feature_params:
     features_to_consider:
-      - degree
+      - degree_onehot
       - tags
 
     max_considered_cycle_len: 4

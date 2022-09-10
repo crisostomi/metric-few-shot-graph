@@ -1,15 +1,15 @@
 defaults:
   - _self_
-  - data: gsm
+  - data: r52
   - model: transfer_learning
 
 data:
-  _target_: fs_grl.data.datamodule.GraphTransferDataModule
+  _target_: fs_grl.data.datamodule.transfer_datamodule.GraphTransferDataModule
 
   dataset_name: ???
   feature_params:
-    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
-      - degree
+    features_to_consider: # possibilities: degree_onehot, tags, num_cycles, pos_enc
+      - degree_onehot
       - tags
 
     max_considered_cycle_len: 4
@@ -18,10 +18,7 @@ data:
   data_dir: ${oc.env:PROJECT_ROOT}/data/${nn.data.dataset_name}
   classes_split_path: ${nn.data.data_dir}/classes_split.json
 
-  num_episodes_per_epoch:
-    train: 2000
-    val: 500
-    test: 1000
+  num_test_episodes: 1000
 
   train_ratio: 0.80
 
