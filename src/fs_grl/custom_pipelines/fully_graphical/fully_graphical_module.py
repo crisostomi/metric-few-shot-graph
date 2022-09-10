@@ -4,12 +4,12 @@ import torch
 from hydra.utils import instantiate
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch
-from fs_grl.modules.baselines.prototypical_dml import PrototypicalDML
+from fs_grl.modules.architectures.prototype_based import PrototypeBased
 from fs_grl.modules.losses.margin import MarginLoss
 from fs_grl.modules.similarities.cosine import cosine
 
 
-class FullyGraphicalModule(PrototypicalDML):
+class FullyGraphicalModule(PrototypeBased):
     def __init__(self, cfg, feature_dim, num_classes, margin, **kwargs):
         super().__init__()
         self.cfg = cfg

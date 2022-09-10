@@ -225,3 +225,4 @@ fabric.properties
 useful_code
 /ssh-info.txt
 /exclude_rsync.txt
+/notebooks/

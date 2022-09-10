@@ -22,11 +22,11 @@ data:
   num_clusters:
     train: 4
 
-  num_test_episodes: 1000
-  support_ratio: 0.8
+  num_episodes_per_epoch:
+    train: 2000
+    val: 500
+    test: 1000
 
-  separated_query_support: false
-  query_support_split_path: null
   train_ratio: 0.80
 
   gpus: ${train.trainer.gpus}
