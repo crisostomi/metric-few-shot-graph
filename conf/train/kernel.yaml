@@ -3,35 +3,36 @@ deterministic: False
 
 trainer:
   fast_dev_run: False
-  gpus: 1
+  gpus: 0
   precision: 32
-  max_epochs: 500
+  max_epochs: 1
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
+  gradient_clip_val: 10.0
   val_check_interval: 1.0
   log_every_n_steps: 1
   deterministic: ${train.deterministic}
 
 restore:
   ckpt_or_run_path: null
-  mode: null
+  mode: null # null, continue, hotstart
 
 monitor:
-  metric: 'metaval/outer_accuracy'
-  mode: 'max'
+  metric: 'loss/val/classification_loss_epoch'
+  mode: 'min'
 
 callbacks:
-  - _target_: pytorch_lightning.callbacks.EarlyStopping
-    patience: 50
-    verbose: False
-    monitor: ${train.monitor.metric}
-    mode: ${train.monitor.mode}
+  # - _target_: pytorch_lightning.callbacks.EarlyStopping
+  #   patience: 10
+  #   verbose: False
+  #   monitor: ${train.monitor.metric}
+  #   mode: ${train.monitor.mode}
 
-  - _target_: pytorch_lightning.callbacks.ModelCheckpoint
-    save_top_k: 2
-    verbose: False
-    monitor: ${train.monitor.metric}
-    mode: ${train.monitor.mode}
+  # - _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  #   save_top_k: 2
+  #   verbose: False
+  #   monitor: ${train.monitor.metric}
+  #   mode: ${train.monitor.mode}
 
   - _target_: pytorch_lightning.callbacks.LearningRateMonitor
     logging_interval: "step"

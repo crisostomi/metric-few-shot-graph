@@ -1,18 +1,16 @@
-
 defaults:
   - _self_
-  - data: reddit
-  - model: as-maml
+  - data: r52
+  - model: graph_kernel
 
 data:
-  _target_: fs_grl.data.datamodule.episodic_datamodule.GraphEpisodicDataModule
+  _target_: fs_grl.data.datamodule.transfer_datamodule.GraphTransferDataModule
 
   dataset_name: ???
   feature_params:
-    features_to_consider:
+    features_to_consider: # possibilities: degree, tags, num_cycles, pos_enc
       - degree
-#      - degree_onehot
-#      - tags
+      - tags
 
     max_considered_cycle_len: 4
     num_pos_encs: 1
@@ -21,8 +19,8 @@ data:
   classes_split_path: ${nn.data.data_dir}/classes_split.json
 
   num_episodes_per_epoch:
-    train: 100 #200
-    val: 100 #200
+    train: 2000
+    val: 500
     test: 1000
 
   train_ratio: 0.80
@@ -30,11 +28,11 @@ data:
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 8
-    val: 8
-    test: 8
+    train: 4
+    val: 4
+    test: 4
 
   batch_size:
-    train: 1 #5
-    val: 1 #5
+    train: 32
+    val: 32
     test: 1

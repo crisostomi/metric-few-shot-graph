@@ -36,6 +36,7 @@ class TransferLearningTarget(BaseModule):
         self.freeze_embedder()
 
         self.initial_state_path = initial_state_path
+        self.automatic_optimization = False
 
         self.classes = metadata.classes_split["novel"]
 

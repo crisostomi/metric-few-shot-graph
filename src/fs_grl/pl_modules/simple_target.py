@@ -22,6 +22,7 @@ class SimpleTarget(TransferLearningTarget):
         self,
         embedder: nn.Module,
         initial_state_path: str,
+        num_finetuning_steps: int,
         metadata: Optional[MetaData] = None,
         *args,
         **kwargs,
@@ -35,6 +36,7 @@ class SimpleTarget(TransferLearningTarget):
         self.classes = metadata.classes_split["novel"]
 
         self.log_prefix = "meta-testing"
+        self.num_finetuning_steps = num_finetuning_steps
 
         self.embedder = embedder
         self.freeze_embedder()
@@ -76,9 +78,23 @@ class SimpleTarget(TransferLearningTarget):
         self.train()
         self.embedder.eval()
 
-        step_out = self.step(batch.supports, "train")
+        optimizer = self.optimizers()
 
-        return step_out
+        total_loss = torch.tensor(0.0)
+        for i in range(self.num_finetuning_steps):
+            samples = batch.supports
+            embeddings = self.embedder(samples)
+            logits = self.classifier(embeddings)
+
+            loss = self.loss_func(logits, samples.y)
+
+            self.manual_backward(loss)
+            optimizer.step()
+            self.zero_grad()
+
+            total_loss += loss.cpu()
+
+        return total_loss
 
     def on_train_batch_start(self, batch: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         self.reset_fine_tuning()

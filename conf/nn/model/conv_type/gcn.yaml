@@ -1,3 +1,3 @@
-_target_: torch_geometric.nn.GATConv
+_target_: torch_geometric.nn.GCNConv
 in_channels: ???
 out_channels: ${nn.model.source.embedder.node_embedder.embedding_dim}

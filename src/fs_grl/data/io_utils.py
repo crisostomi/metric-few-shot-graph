@@ -412,6 +412,21 @@ def data_list_to_graph_list(data_list: List[Data]) -> List[nx.Graph]:
     for data_ind, data in enumerate(data_list):
 
         graph = to_networkx(data, to_undirected=True)
+
+        # TODO: FIXME this should only be done for graph kernels
+        attrs = {
+            node_idx: tuple(node_attrs.tolist()) if len(node_attrs.tolist()) > 1 else node_attrs.item()
+            for node_idx, node_attrs in enumerate(data.x)
+        }
+        degrees = {node_idx: degree for node_idx, degree in graph.degree}
+        ones = {node_idx: 1 for node_idx in graph.nodes}
+        zeros = {node_idx: 1 for node_idx in graph.nodes}
+
+        nx.set_node_attributes(graph, attrs, "attributes")
+        nx.set_node_attributes(graph, degrees, "degree")
+        nx.set_node_attributes(graph, ones, "ones")
+        nx.set_node_attributes(graph, zeros, "zeros")
+
         graph.graph["class"] = data.y.item() if len(data.y.shape) == 1 else data.y.tolist()
         graph.graph["dataset_index"] = data_ind
         graph_list.append(graph)

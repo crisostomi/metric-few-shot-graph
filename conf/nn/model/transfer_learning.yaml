@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - pooling: mean
-  - conv_type: gcn
+  - conv_type: gat
 
 source:
   _target_: fs_grl.pl_modules.simple_source.SimpleSource
@@ -44,6 +44,7 @@ source:
 
 target:
   _target_: fs_grl.pl_modules.simple_target.SimpleTarget
+  num_finetuning_steps: 10
 
   embedder: ???
 
