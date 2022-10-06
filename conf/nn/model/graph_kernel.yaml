@@ -1,30 +1,11 @@
 defaults:
+  - kernel_method: graphlet
   - _self_
 
 _target_: fs_grl.custom_pipelines.graph_kernel.graph_kernel_module.GraphKernel
 
 node_labels_tag: attributes
 
-graph_kernel:
-  # _target_: grakel.kernels.WeisfeilerLehman
-  # n_iter: 5
-  # normalize: True
-
-  # _target_: grakel.kernels.ShortestPath
-  # normalize: True
-  # # n_jobs: -1
-
-  _target_: grakel.kernels.GraphletSampling
-  normalize: False
-  k: 5
-
 classifier:
   _target_: sklearn.svm.SVC
   kernel: precomputed
-
-  # _target_: sklearn.neural_network.MLPClassifier
-  # random_state: 1
-  # max_iter: 300
-
-  # _target_: sklearn.neighbors.KNeighborsClassifier
-  # n_neighbors: 1

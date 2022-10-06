@@ -1,0 +1,4 @@
+
+_target_: grakel.kernels.ShortestPath
+normalize: True
+# n_jobs: -1

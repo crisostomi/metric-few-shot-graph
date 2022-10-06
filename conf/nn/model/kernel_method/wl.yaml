@@ -1,0 +1,3 @@
+_target_: grakel.kernels.WeisfeilerLehman
+n_iter: 5
+normalize: True
