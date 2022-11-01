@@ -36,3 +36,6 @@ data:
     train: 32
     val: 32
     test: 1
+
+model:
+  tsne_plot: false

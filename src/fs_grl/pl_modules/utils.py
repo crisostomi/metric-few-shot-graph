@@ -10,6 +10,28 @@ from fs_grl.custom_pipelines.gsm.graph_spectral_measures import GraphSpectralMea
 from fs_grl.modules.architectures.tadam import TADAM
 
 
+def prepare_data_for_tsne(model_out, batch):
+    """
+    Prepare tensors for tsne from the model's output.
+
+    :param model_out: output of the model
+    :param batch: episode batch
+    """
+    query_embeds = model_out["embedded_queries"].detach().cpu()
+    query_labels = batch.queries.y.detach().cpu()
+
+    support_embeds = model_out["embedded_supports"].detach().cpu()
+    support_labels = batch.supports.y.detach().cpu()
+
+    prototype_embeds, prototype_labels = prototypes_dict_to_tensor(model_out["prototypes_dicts"][0])
+
+    embeds = torch.cat([support_embeds, query_embeds, prototype_embeds], dim=0)
+    classes = torch.cat([support_labels, query_labels, prototype_labels], dim=0)
+    lens = {"support": len(support_labels), "query": len(query_labels), "prototype": len(prototype_labels)}
+
+    return embeds, classes, lens
+
+
 def log_tsne_plot(embeds, classes, lens, batch_idx, model, hparams, logger):
     """
     Create and log the tsne plot of a test episode.
