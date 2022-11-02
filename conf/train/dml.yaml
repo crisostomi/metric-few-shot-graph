@@ -40,7 +40,7 @@ callbacks:
 
   - _target_: fs_grl.callbacks.LogTrainingTimeCallback
 
-  - _target_: fs_grl.callbacks.SimilarityClassesCallback
+  - _target_: fs_grl.callbacks.ClassesSimilarityCallback
 
   - _target_: pytorch_lightning.callbacks.progress.tqdm_progress.TQDMProgressBar
     refresh_rate: 20

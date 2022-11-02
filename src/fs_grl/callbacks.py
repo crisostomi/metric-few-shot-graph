@@ -17,7 +17,7 @@ from fs_grl.data.utils import get_label_to_samples_map
 pylogger = logging.getLogger(__name__)
 
 
-class SimilarityClassesCallback(Callback):
+class ClassesSimilarityCallback(Callback):
     def __init__(self) -> None:
         super().__init__()
         self.samples_per_class = 100
@@ -49,7 +49,7 @@ class SimilarityClassesCallback(Callback):
         cosine_similarity_matrix = norm_prototypes @ norm_prototypes.T
 
         hm = px.imshow(
-            cosine_similarity_matrix.detach().cpu().numpy(),
+            np.around(cosine_similarity_matrix.detach().cpu().numpy(), 3),
             x=list(prototypes_by_class.keys()),
             y=list(prototypes_by_class.keys()),
             text_auto=True,
@@ -57,7 +57,7 @@ class SimilarityClassesCallback(Callback):
         )
         hm.update_xaxes(side="top")
 
-        trainer.logger.experiment.log({"similarity_classes/heatmap": hm})
+        trainer.logger.experiment.log({"classes_similarity/heatmap": hm})
 
     def sample_data(self, dataset, num_samples):
         label_to_samples_map = get_label_to_samples_map(dataset)
