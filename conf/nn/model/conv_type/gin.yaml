@@ -1,7 +1,7 @@
 _target_: torch_geometric.nn.GINConv
 nn:
   _target_: fs_grl.modules.components.mlp.MLP
-  num_layers: 1
+  num_layers: 2
   input_dim: ??
   output_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}
   hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}

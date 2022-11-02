@@ -35,7 +35,7 @@ class GNNPrototypeBased(PrototypeBased, abc.ABC):
             self.cfg.embedder, cfg=self.cfg.embedder, feature_dim=self.feature_dim, _recursive_=False
         )
 
-        assert supports_aggregation == "mean" or "deepsets"
+        assert supports_aggregation in {"mean", "deepsets"}
         self.supports_aggregation = supports_aggregation
 
         if metric_scaling_factor is not None:

@@ -5,7 +5,7 @@ command:
   - ${program}
   - +is_sweep=true
 
-method: random
+method: bayes
 
 project: fs-grl
 entity: gladia
@@ -16,29 +16,29 @@ metric:
 
 parameters:
 
-#  nn.model.optimizer.lr:
-#    distribution: log_uniform_values
-#    min: 1e-6
-#    max: 1e-2
+  nn.model.optimizer.lr:
+    distribution: log_uniform_values
+    min: 1e-6
+    max: 1e-2
 
   nn.model.model.loss_weights.latent_mixup_reg:
     distribution: uniform
     min: 0.0
     max: 1.0
 
-#  nn.model.model.embedder.node_embedder.embedding_dim:
-#    distribution: categorical
-#    values:
-#      - 32
-#      - 64
-#      - 128
+  nn.model.model.embedder.node_embedder.embedding_dim:
+    distribution: categorical
+    values:
+      - 32
+      - 64
+      - 128
 
-#  nn.model.model.embedder.node_embedder.num_convs:
-#    distribution: categorical
-#    values:
-#      - 1
-#      - 2
-#      - 3
+  nn.model.model.embedder.node_embedder.num_convs:
+    distribution: categorical
+    values:
+      - 1
+      - 2
+      - 3
 
   nn.model.model.loss_weights.film_reg:
     distribution: uniform
@@ -60,29 +60,29 @@ parameters:
     min: 0.0
     max: 10.0
 
-#  nn.model.model.embedder.node_embedder.dropout_rate:
-#    distribution: uniform
-#    min: 0.0
-#    max: 0.7
+  nn.model.model.embedder.node_embedder.dropout_rate:
+    distribution: uniform
+    min: 0.0
+    max: 0.7
 
-#  nn.model.model.embedder.node_embedder.jump_mode:
-#    distribution: categorical
-#    values:
-#      - cat
-#      - none
+  nn.model.model.embedder.node_embedder.jump_mode:
+    distribution: categorical
+    values:
+      - cat
+      - none
 
-#  nn.data.batch_size.train:
-#    distribution: categorical
-#    values:
-#      - 16
-#      - 32
+  nn.data.batch_size.train:
+    distribution: categorical
+    values:
+      - 16
+      - 32
 
-#  nn/model/pooling:
-#    values:
-#      - mean
-#      - sum
+  nn/model/pooling:
+    values:
+      - mean
+      - sum
 
-#  nn.model.model.embedder.node_embedder.num_gin_mlp_layers:
-#    values:
-#      - 1
-#      - 2
+  nn.model.model.embedder.node_embedder.num_gin_mlp_layers:
+    values:
+      - 1
+      - 2

@@ -7,7 +7,7 @@ _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
 
 optimizer:
   _target_: torch.optim.Adam
-  lr: 1e-3
+  lr: 1e-4
 
 model:
   _target_: fs_grl.modules.architectures.proto_tadam.ProtoTADAM
@@ -20,9 +20,9 @@ model:
 
   loss_weights:
     classification_loss: 1
-    latent_mixup_reg: 0.6
+    latent_mixup_reg: 0.1
     intraclass_var_reg: 0.0
-    film_reg: 0.8
+    film_reg: 0.1
 
   num_classes_per_episode: ${nn.data.episode_hparams.train.num_classes_per_episode}
 
@@ -37,13 +37,13 @@ model:
       embedding_dim: 64
       hidden_dim: ${nn.model.model.embedder.node_embedder.embedding_dim}
       num_convs: 2
-      dropout_rate: 0.5
+      dropout_rate: 0.0
       do_preprocess: false
       conv_norm: torch_geometric.nn.GraphNorm
       postproc_mlp_norm: torch.nn.LayerNorm
       num_preproc_mlp_layers: 1
       num_postproc_mlp_layers: 2
-      num_gin_mlp_layers: 1
+      num_gin_mlp_layers: 2
       jump_mode: cat
       conv_type: ${nn.model.conv_type}
       non_linearity:

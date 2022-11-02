@@ -98,7 +98,7 @@ class DistanceMetricLearning(BaseModule):
 
     def test_step(self, batch: EpisodeBatch, batch_idx: int) -> Mapping[str, Any]:
 
-        step_out = self.step(batch, "test", batch_idx)
+        step_out = self.step(batch, "test", batch_idx=None)
 
         predictions = self.model.get_predictions(step_out, batch)
 

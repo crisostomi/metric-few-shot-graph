@@ -3,8 +3,9 @@ core:
   storage_dir: ${oc.env:PROJECT_ROOT}/storage
   version: 0.0.1
   tags:
-    - graph_kernel
-    - Graphlet
+#    - graph_kernel
+#    - Graphlet
+    - dev
 
 defaults:
   - hydra: default

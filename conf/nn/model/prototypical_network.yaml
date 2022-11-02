@@ -1,5 +1,6 @@
 defaults:
   - pooling: mean
+  - conv_type: gin
   - _self_
 
 _target_: fs_grl.pl_modules.distance_metric_learning.DistanceMetricLearning
@@ -9,12 +10,13 @@ optimizer:
   lr: 1e-4
 
 model:
-  _target_: fs_grl.modules.architectures.prototypical_network.PrototypicalNetwork
+  _target_: fs_grl.modules.architectures.protonet.PrototypicalNetwork
   feature_dim: ???
   num_classes: ???
   margin: 0.5
   num_classes_per_episode: ${nn.data.episode_hparams.train.num_classes_per_episode}
   metric_scaling_factor: 7.5
+  supports_aggregation: mean
 
   loss_weights:
     classification_loss: 1.0
@@ -40,5 +42,6 @@ model:
       num_postproc_mlp_layers: 2
       num_gin_mlp_layers: 2
       jump_mode: cat
+      conv_type: ${nn.model.conv_type}
       non_linearity:
         _target_: torch.nn.ReLU

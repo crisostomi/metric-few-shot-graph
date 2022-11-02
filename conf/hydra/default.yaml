@@ -14,6 +14,10 @@ job:
     WANDB_START_METHOD: thread
     WANDB_DIR: ${oc.env:PROJECT_ROOT}
 
+#launcher:
+#  # override the number of jobs for joblib
+#  n_jobs: 40
+
 defaults:
   # Disable hydra logging configuration, otherwise the basicConfig does not have any effect
   - override job_logging: none

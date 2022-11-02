@@ -2,6 +2,7 @@ from typing import Dict
 
 import numpy as np
 import torch
+from torch import nn
 
 from fs_grl.data.episode.episode_batch import EpisodeBatch, MolecularEpisodeBatch
 
@@ -73,7 +74,10 @@ class MixUpAugmentor:
 
             ground_truth_combination = alpha * label_a_class_distr + (1 - alpha) * label_b_class_distr
 
-            pair_regularizer_term = torch.norm(crossover_class_distr - ground_truth_combination, p=2) ** 2
+            # pair_regularizer_term = torch.norm(crossover_class_distr - ground_truth_combination, p=2) ** 2
+            pair_regularizer_term = nn.CrossEntropyLoss()(
+                crossover_class_distr.unsqueeze(0), ground_truth_combination.unsqueeze(0)
+            )
             episode_regularizer_term += pair_regularizer_term
 
         return episode_regularizer_term

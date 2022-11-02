@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - data: triangles
-  - model: tadam
+  - model: prototypical_network
 
 data:
   _target_: fs_grl.data.datamodule.episodic_datamodule.GraphEpisodicDataModule
