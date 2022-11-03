@@ -6,13 +6,13 @@ import hydra
 import numpy as np
 import plotly.express as px
 import torch
-import torch.nn.functional as F
 from omegaconf import ListConfig
 from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch_geometric.loader import DataLoader
 
 from fs_grl.data.utils import get_label_to_samples_map
+from fs_grl.modules.similarities.squared_l2 import squared_l2_similarity
 
 pylogger = logging.getLogger(__name__)
 
@@ -45,11 +45,15 @@ class ClassesSimilarityCallback(Callback):
 
         prototypes_matrix = torch.stack(list(prototypes_by_class.values()))
 
-        norm_prototypes = F.normalize(prototypes_matrix, dim=-1)
-        cosine_similarity_matrix = norm_prototypes @ norm_prototypes.T
+        num_classes = prototypes_matrix.shape[0]
 
+        aligned_prototypes_a = prototypes_matrix.repeat_interleave(num_classes, dim=0)
+        aligned_prototypes_b = prototypes_matrix.repeat((num_classes, 1))
+
+        similarities = squared_l2_similarity(aligned_prototypes_a, aligned_prototypes_b)
+        similarity_matrix = similarities.reshape((num_classes, num_classes))
         hm = px.imshow(
-            np.around(cosine_similarity_matrix.detach().cpu().numpy(), 3),
+            np.around(similarity_matrix.detach().cpu().numpy(), 3),
             x=list(prototypes_by_class.keys()),
             y=list(prototypes_by_class.keys()),
             text_auto=True,

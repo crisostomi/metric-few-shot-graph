@@ -20,7 +20,7 @@ model:
 
   loss_weights:
     classification_loss: 1
-    latent_mixup_reg: 0.0
+    latent_mixup_reg: 0.1
     intraclass_var_reg: 0.0
     film_reg: 0.1
 
