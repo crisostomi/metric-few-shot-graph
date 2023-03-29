@@ -39,11 +39,6 @@ repos:
 #      - id: sort-simple-yaml  # sorts simple yaml files which consist only of top-level keys, preserving comments and blocks.
       - id: trailing-whitespace  # trims trailing whitespace.
 
-  - repo: https://github.com/PyCQA/isort.git
-    rev: '5.10.1'
-    hooks:
-      - id: isort
-
 #  -   repo: https://github.com/psf/black.git
 #      rev: '22.1.0'
 #      hooks:
