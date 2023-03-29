@@ -26,9 +26,20 @@ Setup the development environment:
 
 ```bash
 git clone git+ssh://git@github.com/crisostomi/fs-grl.git
-conda env create -f env.yaml
+conda create --name fs-grl python=3.9
 conda activate fs-grl
 pre-commit install
+```
+Install PyTorch with CUDA support according to https://pytorch.org/get-started/locally/.
+
+Install PyG
+```bash
+conda install pyg -c pyg
+```
+
+Install the project in edit mode:
+```bash
+pip install -e "[.dev]"
 ```
 
 Run the tests:
@@ -43,7 +54,7 @@ pytest -v
 
 Download the versioned datasets:
 ```bash
-dvc pull  
+dvc pull
 dvc checkout
 ```
 
