@@ -59,7 +59,7 @@ dvc checkout
 ```
 
 ### Training a model
-
+You can train and evaluate various families of models by running the corresponding script in the `scripts` folder. For example, to train a Distance Metric Learning model, you can run:
 ```bash
-python src/fs_grl/scripts/run_dml.py
+run_dml.py
 ```
