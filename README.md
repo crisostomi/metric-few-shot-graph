@@ -58,11 +58,8 @@ dvc pull
 dvc checkout
 ```
 
-
-### Update the dependencies
-
-Re-install the project in edit mode:
+### Training a model
 
 ```bash
-pip install -e .[dev]
+python src/fs_grl/scripts/run_dml.py
 ```
