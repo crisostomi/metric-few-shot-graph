@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 from nn_core.console_logging import NNRichHandler
 
@@ -11,6 +12,10 @@ lightning_logger = logging.getLogger("pytorch_lightning")
 for handler in lightning_logger.handlers[:]:
     lightning_logger.removeHandler(handler)
 lightning_logger.propagate = True
+
+
+warnings.simplefilter("ignore", category=DeprecationWarning)
+warnings.simplefilter("ignore", category=UserWarning)
 
 FORMAT = "%(message)s"
 logging.basicConfig(

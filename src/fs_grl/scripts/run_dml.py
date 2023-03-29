@@ -20,7 +20,6 @@ from fs_grl.callbacks import build_callbacks
 from fs_grl.data.datamodule.datamodule import GraphFewShotDataModule
 from fs_grl.utils import handle_fast_dev_run
 
-# Force the execution of __init__.py if this file is executed directly.
 
 pylogger = logging.getLogger(__name__)
 

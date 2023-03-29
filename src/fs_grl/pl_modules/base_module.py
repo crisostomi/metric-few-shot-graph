@@ -29,17 +29,17 @@ class BaseModule(pl.LightningModule, ABC):
 
         self.val_metrics = nn.ModuleDict(
             {
-                f"val/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
+                f"val/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction, task="multiclass")
                 for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
         self.test_metrics = nn.ModuleDict(
             {
-                f"test/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction)
+                f"test/{metric_name}/{reduction}": metric(num_classes=self.metadata.num_classes, average=reduction, task="multiclass")
                 for reduction, (metric_name, metric) in itertools.product(reductions, metrics)
             }
         )
-        self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes)})
+        self.train_metrics = nn.ModuleDict({"train/acc/micro": Accuracy(num_classes=self.metadata.num_classes, task="multiclass")})
 
     def configure_optimizers(
         self,
