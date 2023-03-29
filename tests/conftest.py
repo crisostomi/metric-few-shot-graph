@@ -11,7 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytest import FixtureRequest, TempPathFactory
 from pytorch_lightning import seed_everything
 
-from fs_grl.run_dml import run
+from fs_grl.scripts.run_dml import run
 
 seed_everything(42)
 

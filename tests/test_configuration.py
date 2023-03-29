@@ -1,7 +1,7 @@
 import hydra
 from omegaconf import DictConfig
 
-from fs_grl.run_dml import build_callbacks
+from fs_grl.scripts.run_dml import build_callbacks
 
 
 def test_configuration_parsing(cfg: DictConfig) -> None:
