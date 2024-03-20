@@ -3,6 +3,20 @@ defaults:
   - data: triangles
   - model: tadam
 
+
+keys_to_ignore_in_digest:
+  - "seed_index"
+  - "tags"
+  - "data_dir"
+  - "classes_split_path"
+  - "prototypes_path"
+  - "best_model_path"
+  - "storage_dir"
+  - "colors_path"
+  - "entity"
+  - "log_model"
+  - "job"
+
 data:
   _target_: fs_grl.data.datamodule.episodic_datamodule.GraphEpisodicDataModule
 

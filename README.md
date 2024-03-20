@@ -10,25 +10,11 @@ Codebase for the paper [Metric Based Few-Shot Graph Classification](https://proc
 
 ## Installation
 
-```bash
-pip install git+ssh://git@github.com/crisostomi/fs-grl.git
-```
-
-
-## Quickstart
-
-[comment]: <> (> Fill me!)
-
-
-## Development installation
-
 Setup the development environment:
 
 ```bash
-git clone git+ssh://git@github.com/crisostomi/fs-grl.git
 conda create --name fs-grl python=3.9
 conda activate fs-grl
-pre-commit install
 ```
 Install PyTorch with CUDA support according to https://pytorch.org/get-started/locally/.
 
@@ -39,16 +25,8 @@ conda install pyg -c pyg
 
 Install the project in edit mode:
 ```bash
-pip install -e "[.dev]"
+pip install -e .
 ```
-
-Run the tests:
-
-```bash
-pre-commit run --all-files
-pytest -v
-```
-
 
 ### Download data
 

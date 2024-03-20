@@ -24,25 +24,34 @@ from fs_grl.utils import handle_fast_dev_run
 pylogger = logging.getLogger(__name__)
 
 
-def add_run_digest(cfg, keys_to_ignore):
+def add_run_digest(cfg: DictConfig):
+    """
+    Adds a digest to the config, which is a hash of the config without the keys to ignore.
+    """
     OmegaConf.set_struct(cfg, True)
 
     hash_builder = hashlib.sha256()
 
     cfg_as_dict = OmegaConf.to_container(cfg)
-    get_run_digest(cfg_as_dict, keys_to_ignore, hash_builder)
+    get_run_digest(cfg_as_dict, cfg.nn.keys_to_ignore_in_digest, hash_builder)
     run_digest = hash_builder.hexdigest()
     with open_dict(cfg):
         cfg["digest"] = run_digest
 
 
-def get_run_digest(cfg, keys_to_ignore, hash_builder):
+def get_run_digest(cfg: DictConfig, keys_to_ignore: List, hash_builder):
+    """
+    Computes a hash of the config without the keys to ignore. The function is applied recursively to nested dicts.
+    """
 
     for key, value in cfg.items():
+
         if key in keys_to_ignore:
             continue
+
         elif isinstance(value, Dict):
             get_run_digest(value, keys_to_ignore, hash_builder)
+
         else:
             key_value = str(key) + str(value)
             hash_builder.update(key_value.encode("utf-8"))
@@ -58,21 +67,10 @@ def run(cfg: DictConfig) -> str:
     template_core: NNTemplateCore = NNTemplateCore(
         restore_cfg=cfg.train.get("restore", None),
     )
-    keys_to_ignore = {
-        "seed_index",
-        "tags",
-        "data_dir",
-        "classes_split_path",
-        "prototypes_path",
-        "best_model_path",
-        "storage_dir",
-        "colors_path",
-        "entity",
-        "log_model",
-        "job",
-    }
+
     logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
-    add_run_digest(cfg, keys_to_ignore)
+
+    add_run_digest(cfg)
 
     seed_index_everything(cfg.train)
 
